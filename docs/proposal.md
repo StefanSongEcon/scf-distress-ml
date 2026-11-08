@@ -4,7 +4,7 @@
 **Project:** SCF Financial Distress Classification  
 **Primary outcomes:** `LATE` and `LATE60`  
 **Data:** Public-use Survey of Consumer Finances (SCF), Federal Reserve Board  
-**Implementation:** Python; deliver a reproducible project suitable for running with Claude Code  
+**Implementation:** Python; a fully reproducible, tested pipeline  
 **Scope:** Retrospective classification and out-of-survey-wave generalization, **not** prospective default forecasting or causal identification.
 
 ---
@@ -160,7 +160,7 @@ For the best-performing validated model:
 
 Do not interpret SHAP, partial dependence, or permutation importance as causal effects. Check correlation and redundancy: `DEBT`, `PIRTOTAL`, `DEBT2INC`, and asset aggregates can be strongly related. For nonlinear curves, make it clear whether plots are conditional associations or synthetic counterfactual changes to covariates.
 
-## 10. Expected deliverables — Claude Code must implement all of these
+## 10. Expected deliverables
 
 Create this repository structure (adjust only if justified and documented):
 
