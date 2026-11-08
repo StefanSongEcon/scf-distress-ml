@@ -1,4 +1,4 @@
-# Household Delinquency Risk Score (v1.0)
+# Household Delinquency Risk Scores (v1.0)
 
 A seven-question score that estimates how likely a household is to be behind on its debts, built from Federal
 Reserve Survey of Consumer Finances data (2010–2025).
@@ -92,6 +92,29 @@ Main drivers vs. an average household:
   age                    raises risk (+0.26 log-odds)
 Not provided (set to the 2025 average): income_unusually_low, education_debt
 ```
+
+## Two-years-ahead version (used by the web calculator)
+
+The [interactive calculator](https://stefansongecon.github.io/scf-distress-ml/) uses a predictive version of the
+score: the probability of a late or missed loan payment during a 12-month period about two years after the
+questions are answered.
+
+| | |
+|---|---|
+| Inputs | the seven questions above, plus *late or missed a loan payment in the past 12 months* |
+| Training data | SCF 2007–2009 panel: 2007 answers (converted to 2025 dollars) → delinquency reported in 2009; 3,857 families, five implicates pooled |
+| Model | L2 logistic regression; the homeownership indicator is dropped (its positive effect was specific to the 2007–09 housing bust), so the score falls smoothly as home value rises |
+| Accuracy (family-grouped 5-fold CV) | AUC **0.783** [0.766, 0.800] for any late payment and **0.794** [0.770, 0.819] for 60+ days, the same as the 48-feature research model (0.783, 0.795); the top 10% of scores contains 29% of future late payers |
+| Level | anchored to 2025: the intercept is set so that the average predicted risk across 2025 households equals the 2025 delinquency rate (19.6%) |
+| Missing answers | 2025 survey-weighted feature means |
+
+Effects (log-odds, any late payment): a recent missed payment +1.05; college degree −0.66; cash savings −0.27 per
+unit of asinh($/1,000); total debt +0.21 per unit plus +0.45 for having any debt; student loans +0.07; home value
+−0.06; an unusually low income year +0.14; risk declines with age past the mid-30s.
+
+Files: `models/predictive_score_v1.json`, `src/scf_distress/predict_deploy.py` (model), `src/scf_distress/webapp.py`
+and `src/scf_distress/web/calculator.html` (page), `results/deploy/predictive_cv_performance.csv`. The page's
+JavaScript reproduces the Python scores exactly. Rebuild with `pipeline --web`.
 
 ## Applications
 

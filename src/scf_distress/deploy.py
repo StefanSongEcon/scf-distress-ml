@@ -77,7 +77,7 @@ def _k(x):
     return np.arcsinh(x.astype(float) / 1000.0)
 
 
-def build_features(x: pd.DataFrame, inputs: tuple | list) -> pd.DataFrame:
+def build_features(x: pd.DataFrame, inputs: tuple | list, homeowner: bool = True) -> pd.DataFrame:
     """Features computable from the given inputs (columns of x). Same code for training and scoring.
 
     Deployment design: each input enters through one smooth monotone transform (plus a has-debt
@@ -100,6 +100,8 @@ def build_features(x: pd.DataFrame, inputs: tuple | list) -> pd.DataFrame:
         f["income_k"] = _k(x["income"])
     if "income_unusually_low" in have:
         f["income_unusually_low"] = x["income_unusually_low"].astype(float)
+    if "recently_late" in have:  # predictive model only (past delinquency is a legitimate predictor of future)
+        f["recently_late"] = x["recently_late"].astype(float)
     for name, feat in (("liquid_assets", "liquid_k"), ("retirement_assets", "retirement_k"),
                        ("financial_assets", "financial_k"), ("total_assets", "assets_k"),
                        ("credit_card_balance", "credit_card_k"), ("monthly_debt_payments", "payments_k"),
@@ -110,7 +112,7 @@ def build_features(x: pd.DataFrame, inputs: tuple | list) -> pd.DataFrame:
     if "total_debt" in have:
         f["has_debt"] = (x["total_debt"] > 0).astype(float)
         f["debt_k"] = _k(x["total_debt"])
-    if "home_value" in have:
+    if "home_value" in have and homeowner:
         f["homeowner"] = (x["home_value"] > 0).astype(float)
     return f.astype(float)
 

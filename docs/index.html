@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debt Distress Risk Calculator</title>
+<meta name="description" content="Estimate your chance of falling behind on a loan payment about two years from now, from a model trained on Federal Reserve Survey of Consumer Finances data.">
+<style>
+  :root {
+    --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0efeb; --border: #e2e0da;
+    --text: #141413; --text-2: #52514e; --muted: #85837c;
+    --accent: #2a78d6; --accent-ink: #1c5cab; --ref: #b8b6ae;
+    --low: #1f8a5b; --moderate: #a86f00; --high: #c4492a; --veryhigh: #9b1c1c;
+    --warn-bg: #fff4e0; --warn-text: #7a4b00;
+    --radius: 14px; --shadow: 0 1px 2px rgba(20,20,19,.05), 0 4px 16px rgba(20,20,19,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1d1d1b; --surface-2: #262624; --border: #34332f;
+      --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8d85;
+      --accent: #4a92ea; --accent-ink: #86b6ef; --ref: #5c5a54;
+      --low: #3bb57f; --moderate: #e0a12b; --high: #ee7350; --veryhigh: #f07070;
+      --warn-bg: #3a2c12; --warn-text: #f3c77a;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413; --surface: #1d1d1b; --surface-2: #262624; --border: #34332f;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8d85;
+    --accent: #4a92ea; --accent-ink: #86b6ef; --ref: #5c5a54;
+    --low: #3bb57f; --moderate: #e0a12b; --high: #ee7350; --veryhigh: #f07070;
+    --warn-bg: #3a2c12; --warn-text: #f3c77a; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 32px 16px 48px; }
+  header h1 { font-size: clamp(1.6rem, 3.2vw, 2.2rem); line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-2); max-width: 720px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 28px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card .sub { color: var(--muted); font-size: .9rem; margin: 0 0 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-weight: 600; font-size: .95rem; margin-bottom: 2px; }
+  .field .hint { display: block; color: var(--muted); font-size: .82rem; margin-bottom: 6px; }
+  .input { width: 100%; padding: 10px 12px; font: inherit; color: var(--text); background: var(--surface-2);
+           border: 1px solid var(--border); border-radius: 10px; }
+  .input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .money { position: relative; }
+  .money span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .money .input { padding-left: 24px; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { font-weight: 500; font-size: .9rem; margin: 0; padding: 8px 14px; border: 1px solid var(--border);
+               border-radius: 999px; background: var(--surface-2); cursor: pointer; }
+  .seg input:checked + label { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+  button { font: inherit; border-radius: 10px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--border);
+           background: var(--surface-2); color: var(--text); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { color: var(--muted); font-size: .85rem; }
+  .result { position: sticky; top: 16px; }
+  .big { font-size: clamp(2.8rem, 7vw, 3.8rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1; margin: 8px 0 6px;
+         font-variant-numeric: tabular-nums; }
+  .lead { color: var(--text-2); margin: 0 0 14px; }
+  .chip { display: inline-block; font-weight: 600; font-size: .85rem; padding: 3px 10px; border-radius: 999px; color: #fff; }
+  .bars { margin: 18px 0 6px; }
+  .bar-row { display: grid; grid-template-columns: 92px 1fr 52px; align-items: center; gap: 10px; margin: 8px 0; font-size: .9rem; }
+  .bar-track { height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 6px; transition: width .35s ease; }
+  .bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+  .stat-line { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); font-size: .95rem; }
+  .stat-line b { font-variant-numeric: tabular-nums; }
+  .drivers { list-style: none; padding: 0; margin: 6px 0 0; }
+  .drivers li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; font-size: .95rem; }
+  .arrow { font-weight: 700; width: 1.2em; text-align: center; }
+  .up { color: var(--high); } .down { color: var(--low); }
+  .warn { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 12px; display: none; }
+  .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 4px; font-weight: 600; }
+  .about { margin-top: 24px; }
+  .about h2 { font-size: 1.15rem; margin: 0 0 8px; }
+  .about p, .about li { color: var(--text-2); }
+  .about ul { padding-left: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0; }
+  .kpi { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; color: var(--text); }
+  .kpi span { color: var(--muted); font-size: .85rem; }
+  a { color: var(--accent-ink); }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>How likely are you to fall behind on your debts?</h1>
+    <p>Answer up to eight questions to estimate your chance of missing a loan payment about two years from now.
+       The model is trained on the Federal Reserve's Survey of Consumer Finances, which followed the same families
+       over time. Skip any question and the U.S. average is used instead.</p>
+  </header>
+
+  <div class="grid">
+    <form class="card" id="form" autocomplete="off" novalidate>
+      <h2>Your household</h2>
+      <p class="sub">All questions are optional. Nothing leaves your browser.</p>
+
+      <div class="row2">
+        <div class="field">
+          <label for="age">Age</label>
+          <span class="hint">of the main earner</span>
+          <input class="input" id="age" name="age" type="number" inputmode="numeric" min="18" max="100" placeholder="e.g. 38">
+        </div>
+        <div class="field">
+          <label for="education">Education</label>
+          <span class="hint">highest completed</span>
+          <select class="input" id="education" name="education">
+            <option value="">Prefer not to say</option>
+            <option value="1">No high school diploma</option>
+            <option value="2">High school or GED</option>
+            <option value="3">Some college</option>
+            <option value="4">College degree</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="liquid_assets">Cash savings</label>
+        <span class="hint">checking, savings, money market and prepaid cards combined</span>
+        <div class="money"><span>$</span><input class="input" id="liquid_assets" name="liquid_assets" inputmode="decimal" placeholder="e.g. 3,000"></div>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="total_debt">Total debt</label>
+          <span class="hint">mortgage, cards, loans, other</span>
+          <div class="money"><span>$</span><input class="input" id="total_debt" name="total_debt" inputmode="decimal" placeholder="e.g. 25,000"></div>
+        </div>
+        <div class="field">
+          <label for="education_debt">Of which student loans</label>
+          <span class="hint">part of total debt</span>
+          <div class="money"><span>$</span><input class="input" id="education_debt" name="education_debt" inputmode="decimal" placeholder="e.g. 0"></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="home_value">Home value</label>
+        <span class="hint">what your home would sell for; enter 0 if you rent</span>
+        <div class="money"><span>$</span><input class="input" id="home_value" name="home_value" inputmode="decimal" placeholder="e.g. 0"></div>
+      </div>
+
+      <div class="field">
+        <label id="lbl-income">Is your income this year unusually low compared with normal?</label>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-income">
+          <input type="radio" id="inc-y" name="income_unusually_low" value="1"><label for="inc-y">Yes</label>
+          <input type="radio" id="inc-n" name="income_unusually_low" value="0"><label for="inc-n">No</label>
+          <input type="radio" id="inc-s" name="income_unusually_low" value="" checked><label for="inc-s">Skip</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label id="lbl-late">Have you been late or missed a loan payment in the past 12 months?</label>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-late">
+          <input type="radio" id="late-y" name="recently_late" value="1"><label for="late-y">Yes</label>
+          <input type="radio" id="late-n" name="recently_late" value="0"><label for="late-n">No</label>
+          <input type="radio" id="late-s" name="recently_late" value="" checked><label for="late-s">Skip</label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="reset" id="reset">Clear answers</button>
+        <span class="note">Results update as you type.</span>
+      </div>
+    </form>
+
+    <section class="card result" aria-live="polite">
+      <h2>Your estimated risk</h2>
+      <p class="sub" id="answered">No answers yet: showing an average household.</p>
+      <div class="big" id="p-main">–</div>
+      <p class="lead">chance of a late or missed loan payment during a 12-month period about two years from now</p>
+      <span class="chip" id="band">–</span>
+
+      <div class="bars" role="img" id="bars-label">
+        <div class="bar-row"><span>You</span><div class="bar-track"><div class="bar" id="bar-you" style="background:var(--accent);width:0"></div></div><span class="bar-val" id="val-you">–</span></div>
+        <div class="bar-row"><span>U.S. average</span><div class="bar-track"><div class="bar" id="bar-avg" style="background:var(--ref);width:0"></div></div><span class="bar-val" id="val-avg">–</span></div>
+      </div>
+
+      <div class="stat-line"><span>Riskier than this share of U.S. households</span><b id="pct">–</b></div>
+      <div class="stat-line"><span>Chance of a payment 60+ days late</span><b id="p-60">–</b></div>
+
+      <div class="section-title">What drives your estimate</div>
+      <ul class="drivers" id="drivers"><li class="note">Answer a few questions to see what moves your risk.</li></ul>
+      <div class="warn" id="warn"></div>
+      <p class="note" id="imputed"></p>
+    </section>
+  </div>
+
+  <section class="card about">
+    <h2>How this works</h2>
+    <p>The estimate comes from a logistic regression trained on the <a href="https://www.federalreserve.gov/econres/scfindex.htm">Survey of Consumer Finances</a>
+       2007–2009 panel, in which the Federal Reserve interviewed the same 3,857 families in 2007 and again in 2009.
+       The model learns how answers given in 2007 relate to missed loan payments reported two years later, with
+       dollar amounts converted to 2025 dollars. Its overall level is anchored to 2025, when about one in five U.S.
+       households reported a late payment.</p>
+    <div class="kpis" id="kpis"></div>
+    <ul>
+      <li><b>What matters most:</b> a recent missed payment, little cash savings, more debt (especially student
+          loans), and education. Income adds no information once savings and debt are known.</li>
+      <li><b>Missing answers</b> are set to the U.S. average for that question, so the estimate becomes less
+          personal the more you skip.</li>
+      <li><b>Privacy:</b> the calculation runs entirely in your browser; your answers are not stored or sent anywhere.</li>
+      <li>This is a statistical estimate for households with your profile, not a credit score or financial advice.</li>
+    </ul>
+    <p>Full research: <a href="https://github.com/StefanSongEcon/scf-distress-ml">code and paper on GitHub</a>.</p>
+  </section>
+
+  <footer>Yingrui Song · Model v1.0 · Data: Federal Reserve Board, Survey of Consumer Finances.</footer>
+</div>
+
+<script id="model-data" type="application/json">{"version":"1.0","inputs":["age","liquid_assets","total_debt","home_value","income_unusually_low","education_debt","education","recently_late"],"feature_means_2025":{"age":52.739229019587356,"age_sq":3.2698589853560955,"edu_highschool":0.24407002008758402,"edu_somecollege":0.26043932955582216,"edu_college":0.4106789853033594,"income_unusually_low":0.13869952912653702,"recently_late":0.19579408843165008,"liquid_k":2.8230081113802243,"home_value_k":4.298193260340638,"student_loans_k":0.7646136372690481,"has_debt":0.769878724540008,"debt_k":3.596620682623984},"outcomes":{"any_late_payment_2y":{"features":["age","age_sq","edu_highschool","edu_somecollege","edu_college","income_unusually_low","recently_late","liquid_k","home_value_k","student_loans_k","has_debt","debt_k"],"coefficients":{"age":-0.023676068930556585,"age_sq":-0.09718086686964436,"edu_highschool":-0.13782922501614267,"edu_somecollege":-0.1283747521915321,"edu_college":-0.6573705200143787,"income_unusually_low":0.1366331493303678,"recently_late":1.0516722944150734,"liquid_k":-0.26648194282857374,"home_value_k":-0.061833338237259464,"student_loans_k":0.07426838932567487,"has_debt":0.45381418560637715,"debt_k":0.21309940868960134},"intercept":-0.4456889320754681,"rate_2025":0.19579408843165008,"percentiles_2025":[0.00020081409154598992,0.002641352337058423,0.0036822727921186995,0.004944906148723648,0.005661859270312856,0.007010900837222931,0.009051932573648313,0.010553975374892985,0.012500998329274796,0.01448760254406559,0.016830202974359016,0.01890525691400435,0.021063834448234637,0.023562822459106254,0.026621504749432763,0.028304409724268988,0.030400371734120395,0.03254965750250621,0.03538308037767447,0.03787398203278584,0.0399329303197598,0.04245281482879312,0.04495360064897635,0.04778379913716796,0.051007940233895065,0.05483928855428485,0.05750397997818148,0.06048262518917856,0.06293314159032892,0.06649628230716398,0.07035470338023282,0.07304910104940801,0.07590776544665039,0.0790549729420949,0.08287725723671549,0.08671702242862746,0.08972808311199719,0.09316216182159544,0.09590215829453848,0.10012922187219017,0.1019635613094001,0.10533773987148193,0.10973629389483569,0.1138376342642201,0.11745010100323762,0.1205851680041914,0.12433050318318024,0.12772092090379708,0.13117432590503914,0.13462222110788108,0.1380086981831544,0.14286936767740085,0.14690238161145183,0.151039389594125,0.1555542016561212,0.15918499879677162,0.16347731868592447,0.16864888856065768,0.17344770274905522,0.1781591189469008,0.183278559415286,0.18765093533972974,0.1934361232883509,0.19918979843718979,0.20299948989739883,0.2080456098926477,0.21459429240510222,0.22028181561096202,0.2257630622354727,0.23278554672349094,0.24091131694737392,0.24821559111555888,0.2566268115357252,0.2631180463832187,0.26874129077237296,0.2762634988201764,0.28661705463160364,0.2954873542151973,0.3066993115230212,0.3193999730673434,0.3336241601369934,0.3482862066703919,0.36251727378925985,0.3761488192727147,0.3911328653477216,0.405037249282176,0.4207326886243664,0.4421378779523491,0.4607412366359353,0.47953240816181963,0.4977539188007711,0.5177390166165344,0.5318944880438222,0.5497828846095003,0.5715464386583312,0.591642585084351,0.6143400172384977,0.6333596686800408,0.6601629450249895,0.7007297604927141,0.8176243990310604]},"late_60_days_2y":{"features":["age","age_sq","edu_highschool","edu_somecollege","edu_college","income_unusually_low","recently_late","liquid_k","home_value_k","student_loans_k","has_debt","debt_k"],"coefficients":{"age":-0.02963627060886633,"age_sq":-0.13469244131892952,"edu_highschool":-0.1945561483758725,"edu_somecollege":-0.4896450649341488,"edu_college":-1.0631961427546752,"income_unusually_low":0.06285093821011041,"recently_late":0.7412930562756419,"liquid_k":-0.3000588686288987,"home_value_k":-0.10548407691057995,"student_loans_k":0.044367796914254985,"has_debt":0.2933458116191926,"debt_k":0.32215831062794303},"intercept":-0.9674360704321854,"rate_2025":0.08248319761440748,"percentiles_2025":[1.161311774687985e-05,0.00025403672030795127,0.00041920235712346484,0.0006021416712861427,0.0007442075807873893,0.0009347987240744948,0.0012352436039511506,0.0015605894889258144,0.0019628023034721125,0.0024202251768478855,0.0028444620918326945,0.0033269201127926417,0.0038396260696195663,0.0044559375389232525,0.004906923774288696,0.0056167084391411755,0.006337670674558376,0.006890192593327662,0.0074192881520082875,0.00815766084137471,0.008967278342666552,0.009808558961969058,0.010532224837809858,0.011590825962859572,0.012391303311007639,0.013510653302220729,0.014721132907607721,0.015782147552499765,0.017010436748116774,0.01792219061986858,0.018973979834088238,0.020173208204504356,0.021629375181199995,0.02263484761336518,0.023894227894332872,0.025015084876704535,0.02637127259962949,0.02815291587504867,0.029466602506881327,0.03057565993843105,0.03211184759323415,0.03347827219370886,0.03432694522317078,0.03550565346037072,0.03698380315540576,0.03814382719375814,0.04008121923044368,0.042182068427796746,0.04403037517219137,0.04594922742209157,0.047355796342150196,0.04938011323330844,0.05152481248928665,0.05327946103995008,0.05513200784840116,0.05748005020671357,0.05925411195914661,0.0613918741380973,0.06350069439835482,0.06691105016603237,0.06819950790859855,0.07028719471831701,0.07288904288387736,0.07549939431041724,0.07808346674334783,0.08041289674320176,0.08278154213033997,0.08576517641858417,0.08892485838066932,0.09229816793906594,0.09608242615281776,0.09885735247037582,0.10215167116277682,0.10610799852935714,0.11008735475361038,0.11273455622649366,0.11805498675685314,0.1231475039390369,0.1285644077212777,0.13300820346355352,0.1369659652229295,0.14396062569743914,0.1507463247040767,0.15488160415071806,0.16050852562798504,0.171898211458876,0.1784794516402963,0.18873093250925949,0.19566220033809523,0.20573352202466982,0.22136618510647613,0.23406763812071785,0.24686871298270435,0.2578425470097427,0.2761395381561826,0.2925736985879272,0.3165700014711751,0.3479298503994918,0.376396525723807,0.430974402609295,0.6113249430306541]}},"performance":{"auc":0.7828653682532517,"top10":0.2900994790854476}}</script>
+<script>
+(function () {
+  "use strict";
+  const MODEL = JSON.parse(document.getElementById("model-data").textContent);
+  const MAIN = "any_late_payment_2y", SEVERE = "late_60_days_2y";
+  const OWNER = {  // which features each question feeds
+    age: ["age", "age_sq"], education: ["edu_highschool", "edu_somecollege", "edu_college"],
+    liquid_assets: ["liquid_k"], total_debt: ["has_debt", "debt_k"], education_debt: ["student_loans_k"],
+    home_value: ["home_value_k", "homeowner"], income_unusually_low: ["income_unusually_low"],
+    recently_late: ["recently_late"]
+  };
+  const LABEL = {  // [phrase when the input raises risk, phrase when it lowers risk]
+    age: ["Your age group raises", "Your age group lowers"],
+    education: ["Your education level raises", "Your education level lowers"],
+    liquid_assets: ["Low cash savings raise", "Your cash savings lower"],
+    total_debt: ["Your debt load raises", "Little or no debt lowers"],
+    education_debt: ["Student loans raise", "Having no student loans lowers"],
+    home_value: ["Not owning a home (or a low home value) raises", "Your home value lowers"],
+    income_unusually_low: ["An unusually low income year raises", "A normal income year lowers"],
+    recently_late: ["A recent missed payment raises", "No recent missed payments lower"]
+  };
+  const FIELD = { liquid_assets: "Cash savings", total_debt: "Total debt", education_debt: "Student loans", home_value: "Home value" };
+  const BANDS = [[50, "Low", "--low"], [80, "Moderate", "--moderate"], [95, "High", "--high"], [101, "Very high", "--veryhigh"]];
+
+  const k = v => Math.asinh(v / 1000);
+  function features(x) {  // x: inputs present (missing keys absent); mirrors deploy.build_features
+    const f = {};
+    if ("age" in x) { f.age = x.age; f.age_sq = (x.age - 50) ** 2 / 100; }
+    if ("education" in x) { f.edu_highschool = +(x.education === 2); f.edu_somecollege = +(x.education === 3); f.edu_college = +(x.education === 4); }
+    if ("income_unusually_low" in x) f.income_unusually_low = x.income_unusually_low;
+    if ("recently_late" in x) f.recently_late = x.recently_late;
+    if ("liquid_assets" in x) f.liquid_k = k(x.liquid_assets);
+    if ("home_value" in x) { f.home_value_k = k(x.home_value); f.homeowner = +(x.home_value > 0); }
+    if ("education_debt" in x) f.student_loans_k = k(x.education_debt);
+    if ("total_debt" in x) { f.has_debt = +(x.total_debt > 0); f.debt_k = k(x.total_debt); }
+    return f;
+  }
+  function percentile(p, table) {
+    if (p <= table[0]) return 0;
+    for (let i = 1; i < table.length; i++) {
+      if (p <= table[i]) { const a = table[i - 1], b = table[i]; return (i - 1) + (b > a ? (p - a) / (b - a) : 0); }
+    }
+    return 100;
+  }
+  function scoreHousehold(x) {
+    const f = features(x), out = {};
+    for (const oc of [MAIN, SEVERE]) {
+      const spec = MODEL.outcomes[oc];
+      let z = spec.intercept; const contrib = {};
+      for (const name of spec.features) {
+        const v = (name in f) ? f[name] : MODEL.feature_means_2025[name];
+        const c = spec.coefficients[name] * (v - MODEL.feature_means_2025[name]);
+        z += spec.coefficients[name] * v;
+        for (const q in OWNER) if (OWNER[q].includes(name)) contrib[q] = (contrib[q] || 0) + c;
+      }
+      const p = 1 / (1 + Math.exp(-z));
+      out[oc] = { probability: p, percentile: percentile(p, spec.percentiles_2025), rate: spec.rate_2025, contrib };
+    }
+    out.imputed = MODEL.inputs.filter(q => !(q in x));
+    return out;
+  }
+  window.scoreHousehold = scoreHousehold;  // for testing
+
+  const form = document.getElementById("form");
+  const money = s => { const v = String(s).replace(/[$,\s]/g, ""); return v === "" ? null : Number(v); };
+  function readInputs() {
+    const x = {}, errs = [];
+    const age = form.age.value.trim();
+    if (age !== "") { const a = Number(age); if (a >= 18 && a <= 100) x.age = a; else errs.push("Age should be between 18 and 100."); }
+    if (form.education.value) x.education = Number(form.education.value);
+    for (const q of ["liquid_assets", "total_debt", "education_debt", "home_value"]) {
+      const v = money(form[q].value);
+      if (v === null) continue;
+      if (!isFinite(v) || v < 0) { errs.push(FIELD[q] + " should be a dollar amount of zero or more."); continue; }
+      x[q] = v;
+    }
+    for (const q of ["income_unusually_low", "recently_late"]) {
+      const sel = form.querySelector(`input[name="${q}"]:checked`);
+      if (sel && sel.value !== "") x[q] = Number(sel.value);
+    }
+    if ("education_debt" in x && "total_debt" in x && x.education_debt > x.total_debt) {
+      errs.push("Student loans are part of total debt, so total debt was raised to match.");
+      x.total_debt = x.education_debt;
+    }
+    return { x, errs };
+  }
+  const pctFmt = p => (p < 0.01 ? "<1%" : p > 0.99 ? ">99%" : Math.round(p * 100) + "%");
+
+  function render() {
+    const { x, errs } = readInputs();
+    const r = scoreHousehold(x), m = r[MAIN], s = r[SEVERE];
+    const n = MODEL.inputs.length - r.imputed.length;
+    document.getElementById("answered").textContent =
+      n === 0 ? "No answers yet: showing an average household." : `Based on ${n} of ${MODEL.inputs.length} answers.`;
+    document.getElementById("p-main").textContent = pctFmt(m.probability);
+    const band = BANDS.find(b => m.percentile < b[0]);
+    const chip = document.getElementById("band");
+    chip.textContent = band[1] + " risk"; chip.style.background = `var(${band[2]})`;
+    const scale = Math.max(0.6, m.probability, m.rate) * 1.05;
+    document.getElementById("bar-you").style.width = (100 * m.probability / scale) + "%";
+    document.getElementById("bar-avg").style.width = (100 * m.rate / scale) + "%";
+    document.getElementById("val-you").textContent = pctFmt(m.probability);
+    document.getElementById("val-avg").textContent = pctFmt(m.rate);
+    document.getElementById("bars-label").setAttribute("aria-label",
+      `Your chance ${pctFmt(m.probability)} compared with the U.S. average ${pctFmt(m.rate)}`);
+    document.getElementById("pct").textContent = Math.round(m.percentile) + "%";
+    document.getElementById("p-60").textContent = pctFmt(s.probability);
+
+    const ul = document.getElementById("drivers");
+    const ranked = Object.entries(m.contrib).filter(([q, v]) => q in x && Math.abs(v) >= 0.05)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4);
+    ul.innerHTML = "";
+    if (!ranked.length) {
+      ul.innerHTML = `<li class="note">${n ? "Your answers are close to the U.S. average." : "Answer a few questions to see what moves your risk."}</li>`;
+    }
+    for (const [q, v] of ranked) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="arrow ${v > 0 ? "up" : "down"}">${v > 0 ? "↑" : "↓"}</span>` +
+                     `<span>${LABEL[q][v > 0 ? 0 : 1]} your risk</span>`;
+      ul.appendChild(li);
+    }
+    const warn = document.getElementById("warn");
+    warn.style.display = errs.length ? "block" : "none";
+    warn.textContent = errs.join(" ");
+    const NAMES = { age: "age", education: "education", liquid_assets: "cash savings", total_debt: "total debt",
+                    education_debt: "student loans", home_value: "home value",
+                    income_unusually_low: "income this year", recently_late: "recent missed payments" };
+    document.getElementById("imputed").textContent = r.imputed.length && n
+      ? "Set to the U.S. average: " + r.imputed.map(q => NAMES[q]).join(", ") + "." : "";
+  }
+
+  const perf = MODEL.performance;
+  document.getElementById("kpis").innerHTML =
+    `<div class="kpi"><b>${perf.auc.toFixed(2)}</b><span>accuracy (AUC) predicting two years ahead</span></div>` +
+    `<div class="kpi"><b>${Math.round(perf.top10 * 100)}%</b><span>of future late payers fall in the top 10% of scores</span></div>` +
+    `<div class="kpi"><b>${pctFmt(MODEL.outcomes[MAIN].rate_2025)}</b><span>U.S. households with a late payment, 2025</span></div>`;
+
+  form.addEventListener("input", render);
+  form.addEventListener("change", render);
+  form.addEventListener("reset", () => setTimeout(render, 0));
+  render();
+})();
+</script>
+</body>
+</html>

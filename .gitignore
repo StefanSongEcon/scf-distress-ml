@@ -8,3 +8,4 @@ data/external/
 results/predictions/
 results/models/
 results/panel/predictions/
+.claude/

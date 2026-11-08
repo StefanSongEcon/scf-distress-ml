@@ -4,6 +4,9 @@ Which U.S. households fall behind on their debts, and can it be seen coming? Thi
 machine-learning models on Federal Reserve **Survey of Consumer Finances** microdata (2007–2025) to identify
 households that missed loan payments, and to predict who will miss them two years later.
 
+🧮 **Try it:** [estimate your own risk of falling behind](https://stefansongecon.github.io/scf-distress-ml/) — an interactive calculator
+running the two-years-ahead model in your browser
+
 📄 **Paper:** [`docs/scf_delinquency_report.md`](docs/scf_delinquency_report.md)
 
 ---
@@ -40,7 +43,18 @@ and housing. Blue: all families; orange: families with debt.*
 
 ---
 
-## Use the model: a seven-question risk score
+## Use the model
+
+### Interactive calculator
+
+**[stefansongecon.github.io/scf-distress-ml](https://stefansongecon.github.io/scf-distress-ml/)** — answer up to eight
+questions (age, education, cash savings, total debt, student loans, home value, an unusually low income year, a
+recent missed payment) and get your probability of a late or missed loan payment about two years ahead, your
+percentile among U.S. households, and what drives your estimate. Skipped questions use the U.S. average. The model
+is trained on the 2007–2009 SCF panel (2007 answers → 2009 delinquency, cross-validated AUC **0.78**, the same as the
+48-feature research model) and anchored to 2025 delinquency levels; everything runs client-side.
+
+### Seven-question risk score (Python)
 
 The research models are distilled into a deployable score that needs only seven inputs (age, liquid assets,
 total debt, home value, student loans, education, and whether income is unusually low) and keeps essentially all
@@ -90,8 +104,10 @@ Model card, performance and Python API: [`docs/risk_score.md`](docs/risk_score.m
 ```text
 docs/scf_delinquency_report.md   the paper
 docs/writeup.md                  short project summary
-docs/risk_score.md               deployable risk score: model card and usage
-models/distress_score_v1.json    the deployed model
+docs/risk_score.md               deployable risk scores: model card and usage
+docs/index.html                  interactive calculator (GitHub Pages)
+models/distress_score_v1.json    current-distress score (7 inputs)
+models/predictive_score_v1.json  two-years-ahead score used by the calculator (8 inputs)
 results/report.md                detailed cross-sectional results
 results/panel/report.md          detailed panel results
 results/figures/, results/panel/figures/   all figures
@@ -105,7 +121,8 @@ src/scf_distress/                pipeline code
   explain.py, figures.py           importance, SHAP, subgroups, figures
   panel_model.py, panel_analysis.py  two-years-ahead prediction
   deploy.py, score.py              parsimonious risk score and scoring API/CLI
-tests/                           59 unit tests
+  predict_deploy.py, webapp.py     two-years-ahead model and calculator page builder
+tests/                           62 unit tests
 ```
 
 ## Reproduce
@@ -121,6 +138,7 @@ python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' 
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures  # classification
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --panel                              # prediction
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --deploy                             # risk score
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --web                                # calculator
 .venv/bin/python -m pytest -q
 ```
 

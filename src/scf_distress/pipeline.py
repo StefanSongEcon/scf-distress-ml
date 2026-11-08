@@ -240,12 +240,13 @@ def main(argv=None):
     ap.add_argument("--figures", action="store_true", help="render figures from saved results")
     ap.add_argument("--panel", action="store_true", help="2007-2009 panel: prospective models, CIs, importance")
     ap.add_argument("--deploy", action="store_true", help="build the parsimonious deployable risk score")
+    ap.add_argument("--web", action="store_true", help="build the two-years-ahead model and the web calculator")
     ap.add_argument("--jobs", type=int, default=6)
     a = ap.parse_args(argv)
     cfg_path = Path(a.config) if Path(a.config).is_absolute() else ROOT / a.config
     cfg = load_config(cfg_path)
-    if not (a.build or a.run or a.explain or a.variance or a.figures or a.panel or a.deploy):
-        ap.error("choose at least one of --build, --run, --explain, --variance, --figures, --panel, --deploy")
+    if not (a.build or a.run or a.explain or a.variance or a.figures or a.panel or a.deploy or a.web):
+        ap.error("choose at least one of --build, --run, --explain, --variance, --figures, --panel, --deploy, --web")
     if a.build:
         cmd_build(cfg)
     if a.run:
@@ -266,6 +267,10 @@ def main(argv=None):
     if a.deploy:
         from . import deploy
         deploy.run(a.jobs)
+    if a.web:
+        from . import predict_deploy, webapp
+        predict_deploy.run()
+        webapp.build()
 
 
 if __name__ == "__main__":

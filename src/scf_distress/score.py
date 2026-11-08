@@ -37,7 +37,9 @@ EDUCATION_LABELS = {"no_hs": 1, "less_than_high_school": 1, "high_school": 2, "h
                     "some_college": 3, "college": 4, "bachelor": 4, "graduate": 4}
 BANDS = ((50, "Low"), (80, "Moderate"), (95, "High"), (101, "Very high"))
 OUTCOME_LABELS = {"any_late_payment_12m": "Any late or missed loan payment (past 12 months)",
-                  "late_60_days_12m": "Payment 60+ days late (past 12 months)"}
+                  "late_60_days_12m": "Payment 60+ days late (past 12 months)",
+                  "any_late_payment_2y": "Late or missed loan payment, about two years ahead",
+                  "late_60_days_2y": "Payment 60+ days late, about two years ahead"}
 
 
 @lru_cache(maxsize=4)
@@ -59,9 +61,10 @@ def _as_bool(v) -> float:
 def clean_inputs(raw: dict, model: dict) -> dict:
     """Validate and normalize one household's inputs; drop empty values (treated as missing)."""
     allowed = set(model["inputs"])
-    unknown = set(raw) - set(INPUTS)
+    valid = set(INPUTS) | allowed
+    unknown = set(raw) - valid
     if unknown:
-        raise ValueError(f"unknown inputs: {sorted(unknown)}; valid: {sorted(INPUTS)}")
+        raise ValueError(f"unknown inputs: {sorted(unknown)}; valid: {sorted(valid)}")
     out = {}
     for k, v in raw.items():
         if v is None or (isinstance(v, float) and math.isnan(v)) or (isinstance(v, str) and v.strip() == ""):
@@ -73,7 +76,7 @@ def clean_inputs(raw: dict, model: dict) -> dict:
             v = int(float(v))
             if v not in (1, 2, 3, 4):
                 raise ValueError("education must be 1-4 or one of " + ", ".join(sorted(EDUCATION_LABELS)))
-        elif k in ("income_unusually_low", "married"):
+        elif k in ("income_unusually_low", "married", "recently_late"):
             v = _as_bool(v)
         else:
             v = float(v)
@@ -135,7 +138,7 @@ def score(household: dict, model_path: str | None = None, top_drivers: int = 3) 
                              "percentile_2025": round(pct, 1), "risk_band": _band(pct),
                              "us_average_2025": round(spec["rate_2025"], 4)}
         out["imputed_inputs"] = imputed[0]
-        if oc == "any_late_payment_12m":
+        if oc in ("any_late_payment_12m", "any_late_payment_2y"):
             owner = _feature_owner(tuple(model["inputs"]))
             means = model["feature_means_2025"]
             contrib = {}
@@ -183,6 +186,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Household delinquency risk score (SCF model).")
     for k, (_, desc, unit) in INPUTS.items():
         ap.add_argument(f"--{k.replace('_', '-')}", dest=k, help=f"{desc} [{unit}]")
+    ap.add_argument("--recently-late", dest="recently_late",
+                    help="Late or missed a loan payment in the past 12 months [yes/no] (predictive model)")
     ap.add_argument("--json", help="JSON file with one household (object) or many (list); '-' for stdin")
     ap.add_argument("--csv", help="CSV file, one household per row, columns named like the inputs")
     ap.add_argument("--out", help="write batch scores to this CSV")
@@ -201,7 +206,7 @@ def main(argv=None):
             return
         household = data
     else:
-        household = {k: getattr(a, k) for k in INPUTS if getattr(a, k) is not None}
+        household = {k: getattr(a, k) for k in list(INPUTS) + ["recently_late"] if getattr(a, k) is not None}
     result = score(household, a.model)
     print(json.dumps(result, indent=2) if a.format == "json" else _format(result))
 
