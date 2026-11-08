@@ -1,0 +1,63 @@
+[run] 54 cells, 6 parallel jobs, config sha256=43da9ac30c8b
+joblib.externals.loky.process_executor._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/externals/loky/process_executor.py", line 490, in _process_worker
+    r = call_item()
+        ^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/externals/loky/process_executor.py", line 291, in __call__
+    return self.fn(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 607, in __call__
+    return [func(*args, **kwargs) for func, args, kwargs in self.items]
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 192, in one
+    r = run_cell(df, X_all, feat_names, *c, cfg)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 120, in run_cell
+    met = ev.all_metrics(yva, p, wva_raw, cfg["evaluation"]["top_k_share"])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 146, in all_metrics
+    cal = calibration_intercept_slope(y, p, w)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 139, in calibration_intercept_slope
+    a, b = irls(X, np.zeros_like(lp))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 133, in irls
+    step = np.linalg.solve(X.T @ (v[:, None] * X), X.T @ (w * (y - mu)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 463, in solve
+    r = gufunc(a, b, signature=signature)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 144, in _raise_linalgerror_singular
+    raise LinAlgError("Singular matrix")
+numpy.linalg.LinAlgError: Singular matrix
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 250, in <module>
+    main()
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 246, in main
+    cmd_run(cfg, cfg_path, a.jobs)
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 196, in cmd_run
+    res = Parallel(n_jobs=jobs, backend="loky", verbose=0)(delayed(one)(c) for c in cells)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 2098, in __call__
+    return output if self.return_generator else list(output)
+                                                ^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1704, in _get_outputs
+    yield from self._retrieve()
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1806, in _retrieve
+    self._raise_error_fast()
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1885, in _raise_error_fast
+    error_job.get_result(self.timeout)
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 780, in get_result
+    return self._return_or_raise()
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 795, in _return_or_raise
+    raise self._result
+numpy.linalg.LinAlgError: Singular matrix

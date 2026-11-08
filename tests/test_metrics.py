@@ -53,6 +53,16 @@ def test_perfect_calibration_slope_near_one():
     assert cal["citl_intercept"] == pytest.approx(0.0, abs=0.03)
 
 
+def test_constant_predictions_have_citl_but_no_slope():
+    p = np.full(N, 0.3)
+    cal = ev.calibration_intercept_slope(Y, p, W)
+    assert np.isnan(cal["slope"])
+    prev = ev.weighted_prevalence(Y, W)
+    expected = np.log(prev / (1 - prev)) - np.log(0.3 / 0.7)
+    assert cal["citl_intercept"] == pytest.approx(expected, abs=1e-6)
+    assert ev.roc_auc(Y, p, W) == pytest.approx(0.5)
+
+
 def test_calibration_table_weight_shares():
     t = ev.calibration_table(Y, P, W, n_bins=10)
     assert t["weight_share"].sum() == pytest.approx(1.0)

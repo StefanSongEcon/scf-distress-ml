@@ -136,8 +136,10 @@ def calibration_intercept_slope(y, p, w=None, max_iter: int = 100) -> dict:
                 break
         return beta
 
-    a, b = irls(X, np.zeros_like(lp))
     (a_citl,) = irls(X[:, :1], lp)
+    if np.ptp(lp) < 1e-9:  # constant predictions: slope is not identified
+        return {"intercept": np.nan, "slope": np.nan, "citl_intercept": float(a_citl)}
+    a, b = irls(X, np.zeros_like(lp))
     return {"intercept": float(a), "slope": float(b), "citl_intercept": float(a_citl)}
 
 

@@ -34,11 +34,16 @@ Replicate-weight files (`scf<year>rw1*`) go in the same folder as the main file 
 ## Commands
 
 ```bash
-python -m pip install -e '.[ml,explain,dev]'
-pytest -q
+python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' pyarrow
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --build   # Fed variables from raw data
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --run     # audit, tuning, locked 2025 test
+.venv/bin/python -m pytest -q
 ```
 
-Pipeline commands (`python -m scf_distress.pipeline --config config.yaml --run`) will be added with the data stage.
+Outputs (`results/tables/`): `data_audit_by_year.csv`, `outcome_prevalence.csv`, `tuning_results.csv`,
+`test_by_implicate.csv`, `model_performance.csv` (mean/min/max over implicates), `logit_coefficients.csv`;
+predictions in `results/predictions/test_2025.parquet`; versions, hyperparameters and timings in
+`results/run_metadata.json`.
 
 ## Building the Fed summary variables
 
