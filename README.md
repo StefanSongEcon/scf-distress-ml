@@ -40,6 +40,32 @@ and housing. Blue: all families; orange: families with debt.*
 
 ---
 
+## Use the model: a seven-question risk score
+
+The research models are distilled into a deployable score that needs only seven inputs (age, liquid assets,
+total debt, home value, student loans, education, and whether income is unusually low) and keeps essentially all
+of the accuracy (**AUC 0.85** on the 2025 survey vs 0.86 for the full 46-feature model). Missing inputs are filled
+with 2025 sample means.
+
+```bash
+python -m scf_distress.score --age 29 --liquid-assets 300 --total-debt 38000 --education-debt 30000 \
+    --income-unusually-low yes --education some_college --home-value 0
+```
+
+```text
+Any late or missed loan payment (past 12 months):
+  probability 74.1%  (U.S. average 19.6%)
+  percentile  100  ->  Very high risk
+Main drivers vs. an average household:
+  liquid_assets          raises risk (+1.10 log-odds)
+  total_debt             raises risk (+0.65 log-odds)
+  income_unusually_low   raises risk (+0.41 log-odds)
+```
+
+Model card, performance and Python API: [`docs/risk_score.md`](docs/risk_score.md).
+
+---
+
 ## What's under the hood
 
 - **The Fed's own variable definitions, reproduced exactly.** A small SAS interpreter runs the Federal Reserve's
@@ -64,6 +90,8 @@ and housing. Blue: all families; orange: families with debt.*
 ```text
 docs/scf_delinquency_report.md   the paper
 docs/writeup.md                  short project summary
+docs/risk_score.md               deployable risk score: model card and usage
+models/distress_score_v1.json    the deployed model
 results/report.md                detailed cross-sectional results
 results/panel/report.md          detailed panel results
 results/figures/, results/panel/figures/   all figures
@@ -76,7 +104,8 @@ src/scf_distress/                pipeline code
   evaluate.py, variance.py         weighted metrics, replicate-weight inference
   explain.py, figures.py           importance, SHAP, subgroups, figures
   panel_model.py, panel_analysis.py  two-years-ahead prediction
-tests/                           52 unit tests
+  deploy.py, score.py              parsimonious risk score and scoring API/CLI
+tests/                           59 unit tests
 ```
 
 ## Reproduce
@@ -91,6 +120,7 @@ python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' 
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --build                              # SCF variables
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures  # classification
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --panel                              # prediction
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --deploy                             # risk score
 .venv/bin/python -m pytest -q
 ```
 

@@ -1,0 +1,18 @@
+step,added,inputs,val_logloss,val_auc
+0,age,age,0.3735650340165483,0.6298637322661953
+1,liquid_assets,"age, liquid_assets",0.34926902449352815,0.725042542413215
+2,total_debt,"age, liquid_assets, total_debt",0.32289984120691406,0.7943204655030046
+3,home_value,"age, liquid_assets, total_debt, home_value",0.32047331194899936,0.8008355136307349
+4,income_unusually_low,"age, liquid_assets, total_debt, home_value, income_unusually_low",0.31828661976286377,0.8034295826048092
+5,education_debt,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt",0.31733802185241056,0.8054424144517194
+6,education,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education",0.31637935746122337,0.8077548674047412
+7,children,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children",0.31551882180574853,0.8090433404696824
+8,retirement_assets,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets",0.3149174640087835,0.8103948628845457
+9,total_assets,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets",0.3149208431886875,0.8103878003321321
+10,married,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married",0.3149276337459662,0.8103793724292769
+11,mortgage_debt,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt",0.31496045052424615,0.8102600784053229
+12,monthly_debt_payments,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt, monthly_debt_payments",0.3149794228859095,0.8098956053103696
+13,vehicle_debt,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt, monthly_debt_payments, vehicle_debt",0.3145510894208007,0.8105208107924071
+14,credit_card_balance,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt, monthly_debt_payments, vehicle_debt, credit_card_balance",0.3146380748045383,0.8103767381476297
+15,financial_assets,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt, monthly_debt_payments, vehicle_debt, credit_card_balance, financial_assets",0.3147325901972474,0.8102207689084009
+16,income,"age, liquid_assets, total_debt, home_value, income_unusually_low, education_debt, education, children, retirement_assets, total_assets, married, mortgage_debt, monthly_debt_payments, vehicle_debt, credit_card_balance, financial_assets, income",0.3148763233159454,0.8099874110611747
