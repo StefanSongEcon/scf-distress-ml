@@ -141,6 +141,54 @@
       "sha256": "24a91e287a120e82fc1a1fa5521951dc173c72923ae5ed4d7e5c41d3ccc5c6e4",
       "bytes": 25593603,
       "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "panel_full_public_stata",
+      "path": "data/raw/p09pi6.dta",
+      "source": "supplied by user",
+      "sha256": "dd34e866c415ab5d2277dcc8f802ed1a27cae05adb4ad72434ebfb7cabbb670e",
+      "bytes": 128327966,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "panel_summary_extract_stata_zip",
+      "path": "data/external/panel2009/extract/rscfp2009panels.zip",
+      "source": "https://www.federalreserve.gov/econres/files/rscfp2009panels.zip",
+      "sha256": "5e1864babaa4192d79b577878f715cc6e5d49a5b38aed30d6486e03159f9992d",
+      "bytes": 8556238,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "panel_summary_extract_excel_zip",
+      "path": "data/external/panel2009/extract/rscfp2009panelexcel.zip",
+      "source": "https://www.federalreserve.gov/econres/files/rscfp2009panelexcel.zip",
+      "sha256": "6d52f509b9a71e3ea9ee2ecde147926b2b2a70b192e263752b6ae7ea48f958f3",
+      "bytes": 46908036,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "panel_replicate_weights_stata_zip",
+      "path": "data/external/panel2009/replicate_weights/scf2009prw1s.zip",
+      "source": "https://www.federalreserve.gov/econres/files/scf2009prw1s.zip",
+      "sha256": "a02be2f04630e8f2f16647cc984ab424b94ab3616aed0ef3633ec6aadd507120",
+      "bytes": 22626969,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "fed_panel_sas_macro",
+      "path": "docs/panel/fedstables.macro.txt",
+      "source": "https://www.federalreserve.gov/econres/files/fedstables.macro.txt",
+      "sha256": "9f2f7fda67949e1d17c2b9181509fb2f91cff9a898ea439846788527d5872f90",
+      "bytes": 85960,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "kind": "fed_panel_codebook",
+      "path": "docs/panel/codebk2009p.txt",
+      "source": "https://www.federalreserve.gov/econres/files/codebk2009p.txt",
+      "sha256": "f6e724a114d0315d09e3296ffeff295fde118817fd96b9449939cca5dddc8711",
+      "bytes": 803309,
+      "retrieved": "2026-11-08"
     }
   ]
 }
