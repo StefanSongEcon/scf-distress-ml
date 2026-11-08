@@ -5,7 +5,7 @@ machine-learning models on Federal Reserve **Survey of Consumer Finances** micro
 households that missed loan payments, and to predict who will miss them two years later.
 
 🧮 **Try it:** [estimate your own risk of falling behind](https://stefansongecon.github.io/scf-distress-ml/) — an interactive calculator
-running the two-years-ahead model in your browser
+running the two-years-ahead predicting model in your browser
 
 📄 **Paper:** [`docs/scf_delinquency_report.md`](docs/scf_delinquency_report.md)
 
