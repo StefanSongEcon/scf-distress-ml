@@ -96,6 +96,51 @@
       "url": "https://www.federalreserve.gov/econres/files/bulletin.macro.txt",
       "path": "docs/bulletin.macro.txt",
       "sha256": "5aef2019a0bbb4f3d77909c404d52c516a706b216b0cc1b25a0cd9a7f9014f98"
+    },
+    {
+      "year": 2010,
+      "kind": "replicate_weights_stata_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scf2010rw1s.zip",
+      "path": "data/external/replicate_weights/2010/scf2010rw1s.zip",
+      "sha256": "7640c98ae3e7d4f7df4f609b31a6150e29a8412ad5a80dd20e3d3cfcfce61f97",
+      "bytes": 38180549,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "year": 2013,
+      "kind": "replicate_weights_stata_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scf2013rw1s.zip",
+      "path": "data/external/replicate_weights/2013/scf2013rw1s.zip",
+      "sha256": "9037b8db2516a9d43a4e05ba89ebc8bbe00dc55b9160030f8d4fdb1e0b103db1",
+      "bytes": 35429037,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "year": 2016,
+      "kind": "replicate_weights_stata_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scf2016rw1s.zip",
+      "path": "data/external/replicate_weights/2016/scf2016rw1s.zip",
+      "sha256": "bb95ccfc3e60829b30642c0962186023bdd0d2e873c11c60a6e2af7c11a4ce04",
+      "bytes": 36458838,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "year": 2019,
+      "kind": "replicate_weights_stata_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scf2019rw1s.zip",
+      "path": "data/external/replicate_weights/2019/scf2019rw1s.zip",
+      "sha256": "67543b58865df36508ee8d9b873cf9da9f72dfe33de0331be60fbf357a1fead8",
+      "bytes": 33750309,
+      "retrieved": "2026-11-08"
+    },
+    {
+      "year": 2025,
+      "kind": "replicate_weights_stata_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scf2025rw1s.zip",
+      "path": "data/external/replicate_weights/2025/scf2025rw1s.zip",
+      "sha256": "24a91e287a120e82fc1a1fa5521951dc173c72923ae5ed4d7e5c41d3ccc5c6e4",
+      "bytes": 25593603,
+      "retrieved": "2026-11-08"
     }
   ]
 }
