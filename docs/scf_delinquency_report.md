@@ -1,391 +1,373 @@
-# Household Financial Distress in the Survey of Consumer Finances: Classification and Prediction with Machine Learning
+# Thin Buffers: Classifying and Predicting Household Delinquency in the Survey of Consumer Finances
 
-**Data:** Federal Reserve Survey of Consumer Finances (SCF), full public data — cross-sections 2010, 2013, 2016,
-2019, 2025 and the 2007–2009 panel
-**Methods:** survey-weighted L2 logistic regression and XGBoost, fit per multiple-imputation implicate; locked
-out-of-time test; nested cross-validation; replicate-weight confidence intervals
-**Code:** `src/scf_distress/` (Python); all numbers in this document are computed by that code
+**Yingrui Song**
+November 2026
 
 ---
 
 ## Abstract
 
-Which households fall behind on their debts, and can it be seen coming? This project answers two related
-questions with SCF microdata.
-
-**Part I — Classification (cross-sections, 2010–2025).** Using a household's demographics, income and balance
-sheet at the interview, models identify families that were late on a loan payment in the previous twelve months.
-Trained on 2010–2019 and tested once on the newly released 2025 survey, the full model reaches ROC AUC 0.86
-(95% CI 0.85–0.87), against 0.69 for demographics alone. Liquid assets are the most informative variable; among
-borrowers, detailed debt measures add little beyond liquidity and wealth; logistic regression matches gradient
-boosting. Rankings carry over to 2025, but levels do not: delinquency rose from 12% (2019) to 20% (2025), and
-models trained on earlier years under-predict it.
-
-**Part II — Prediction (2007–2009 panel).** Using only information from the 2007 interview, models predict
-delinquency reported two years later in 2009, during the financial crisis. The 2007 balance sheet predicts 2009
-delinquency with AUC 0.76 (0.78 with 2007 delinquency added), against 0.69 for demographics and 0.84 for the same
-families' 2009 balance sheet. Balance sheets are forward-looking, including for families who were current in
-2007, but part of the cross-sectional accuracy (about 0.08–0.10 AUC) is contemporaneous.
+Which households fall behind on their debts, and can it be seen coming? Using Federal Reserve Survey of
+Consumer Finances (SCF) microdata from 2007 to 2025, I train survey-weighted machine-learning models to identify
+households that missed loan payments. In cross-sections, a household's balance sheet raises out-of-sample
+discrimination from an AUC of 0.69 with demographics alone to 0.86 on the newly released 2025 survey. Liquid assets
+carry most of the signal: among borrowers, detailed measures of debt and debt service add little once liquidity and
+wealth are known, and regularized logistic regression performs as well as gradient boosting. Models trained on
+2010–2019 rank 2025 households accurately but miss the level of delinquency, which rose from 12 to 20 percent. In the
+2007–2009 SCF panel, balance sheets observed in 2007 predict delinquency during the financial crisis two years later
+(AUC 0.78 with past delinquency), including among households that were current in 2007. Roughly half of the
+balance-sheet signal is forward-looking; the remainder reflects distress that is already under way when finances are
+measured.
 
 ---
 
-## 1. Questions and contributions
+## 1. Introduction
 
-| | Part I: Classification | Part II: Prediction |
-|---|---|---|
-| Question | Which households *have recently been* delinquent, given their current finances? | Which households *will be* delinquent, given finances two years earlier? |
-| Data | 5 cross-sections, 28,882 families | 2007–2009 panel, 3,857 families |
-| Timing | predictors at interview; outcome in previous 12 months | predictors in 2007; outcome window mid-2008 to 2009 |
-| Validation | locked out-of-time test on 2025 | family-grouped nested cross-validation |
-| Use | describe and measure distress; transportability over time | forecasting; separating forward-looking from contemporaneous signal |
+Missed debt payments are often the first observable sign of household financial distress, and they precede the more
+costly outcomes—default, foreclosure, bankruptcy—that motivate much of household-finance policy. Understanding
+which households fall behind, and whether this can be anticipated from information available beforehand, matters
+for consumer-credit supervision, for the design of emergency-savings and forbearance policy, and for measuring
+financial fragility in surveys that do not ask about payment problems directly.
 
-Contributions:
-1. A Python port of the Federal Reserve's own SAS variable-construction programs, matching the Fed's published
-   extracts exactly for the cross-sections and with every difference explained for the panel.
-2. A survey-correct ML workflow: one model per implicate, survey weights in fitting and evaluation, design-based
-   confidence intervals from the SCF replicate weights, and paired tests between models.
-3. Evidence that liquidity, not debt detail, is the core signal, and a measurement of how much of it is
-   forward-looking.
+This paper studies delinquency in the Survey of Consumer Finances, the most comprehensive source of household
+balance-sheet data in the United States. It asks two questions. The first is a classification question: given a
+household's demographics, income, assets and debts, how well can one identify households that were late on a loan
+payment in the past year, and which parts of the balance sheet carry that information? The second is a prediction
+question: does a household's balance sheet anticipate delinquency that occurs two years later?
+
+The two questions call for different data. Classification uses five SCF cross-sections (2010, 2013, 2016, 2019 and
+2025; 28,882 families), trained on the first four and evaluated once on 2025. Prediction uses the 2007–2009 SCF panel,
+which re-interviewed 3,857 families during the financial crisis, so that every predictor is measured before the
+outcome period.
+
+Four findings emerge.
+
+1. **Balance sheets identify delinquent households well, and liquidity is the core signal.** On the 2025 test, AUC
+   rises from 0.69 with demographics to 0.86 with the full balance sheet. Liquid assets are the single most
+   informative variable. Among borrowers, adding detailed debt amounts, composition and payment-to-income ratios to
+   wealth and liquidity raises AUC by only about 0.02.
+2. **Flexible models add nothing over a well-specified linear model.** Gradient boosting and L2-regularized
+   logistic regression are statistically indistinguishable in every specification with the full feature set.
+3. **Rankings transport across time; levels do not.** Models trained on 2010–2019 rank 2025 households as
+   accurately as they ranked households in earlier years, yet delinquency rose sharply after a decade of decline and
+   the models under-predict its 2025 level.
+4. **About half of the balance-sheet signal is forward-looking.** In the panel, 2007 balance sheets predict 2009
+   delinquency with AUC 0.76, or 0.78 adding 2007 delinquency, compared with 0.84 for the same families' 2009 balance
+   sheets. They also predict the onset of delinquency among households that were current in 2007.
+
+Methodologically, the paper builds a survey-correct machine-learning workflow for SCF microdata. The SCF's standard
+variables are produced by Federal Reserve SAS programs; I port these programs to Python and reproduce the Fed's
+published summary data exactly. Every model is estimated separately on each of the SCF's five multiple-imputation
+implicates, survey weights enter both estimation and evaluation, and confidence intervals use the SCF's 999
+replicate weights. The 2025 evaluation was specified and committed before the test data were scored.
+
+The rest of the paper is organized as follows. Section 2 describes the data and measurement. Section 3 lays out the
+empirical design. Sections 4 and 5 present the classification and prediction results. Section 6 discusses what the
+two exercises imply together, and Section 7 concludes.
 
 ---
 
-## 2. Data
+## 2. Data and Measurement
 
-### 2.1 Sources
+### 2.1 The Survey of Consumer Finances
 
-| Data | Content | Use |
+The SCF is a triennial survey of U.S. families sponsored by the Federal Reserve Board. It combines an area-probability
+sample with a list sample that over-samples wealthy households, so survey weights are essential for population
+estimates. Missing responses are multiply imputed, and each family appears as five implicates. I use the full public
+datasets for the 2010, 2013, 2016, 2019 and 2025 cross-sections and the public 2007–2009 panel. Table 1 summarizes the
+samples.
+
+**Table 1. Samples**
+
+| | Cross-sections | Panel |
 |---|---|---|
-| SCF full public data `p10i6`, `p13i6`, `p16i6`, `p19i6`, `p25i6` | 4,360–6,482 families per wave, 5 implicates each, raw questionnaire variables | Part I |
-| SCF 2007–2009 panel `p09pi6` | 3,857 families interviewed in 2007 (`X` variables) and re-interviewed in 2009 (`P` variables) | Part II |
-| Fed SAS programs `bulletin.macro.txt`, `fedstables.macro.txt` | official definitions of income, assets, debts, payment ratios | variable construction |
-| Fed summary extracts `scfp<year>`, `rscfp2009panel` | the Fed's own computed variables | validation only, never model inputs |
-| Fed replicate weights `scf<year>rw1`, `scf2009prw1` | 999 replicate weights per family | confidence intervals |
+| Waves | 2010, 2013, 2016, 2019, 2025 | 2007 interview, 2009 re-interview |
+| Families | 28,882 (4,360–6,482 per wave) | 3,857 |
+| Records (5 implicates each) | 144,410 | 19,285 |
+| Weights | wave survey weights | 2009 panel weights |
+| Dollars | 2025 | 2009 |
 
-2022 is excluded by design. Checksums and URLs for every file: `data/PROVENANCE.json`.
+### 2.2 Constructed variables
 
-### 2.2 Constructing variables: porting the Fed's SAS programs
-
-The SCF's standard variables (income, net worth, debt, payment-to-income, …) are produced by the Fed's SAS
-programs from raw answers. Rather than re-deriving them by hand, a small SAS interpreter (`sasport.py`) runs the
-Fed's own code in Python: it resolves the macro layer for each year (`%IF`/`%ELSE`, `%LET`, `%EVAL`, the payment
-frequency helper `%MCONV`, and in the panel program the pointers that switch between 2007 `X` and 2009 `P`
-variables), parses the DATA step, and executes it vectorized with SAS missing-value and comparison rules.
-
-| Validation against Fed extract | Result |
-|---|---|
-| Cross-sections 2010–2025 | **All 350 variables match exactly for every family-implicate in all five waves** |
-| Panel 2007 | 173 of 188 match exactly |
-| Panel 2009 | 181 of 188 match exactly |
-
-All panel differences are explained: one family's stock holdings differ in both years because the 2012 extract
-predates the 2014 data release used here (the build follows the raw values), and the extract's `MSAVING07` is in
-nominal dollars (ratio exactly the CPI factor 3171/3062; liquid assets, which contain it, match). The comparison
-caught one translation bug during development (an assignment `CALL=…` mistaken for a SAS `CALL` routine).
-
-Dollar values: 2025 dollars in Part I, 2009 dollars in Part II (Fed CPI-U-RS factors).
+Income, assets, debts and payment burdens in the SCF are standardized by the Federal Reserve's summary-variable
+programs, written in SAS. Rather than approximating them, I wrote an interpreter that executes the Fed's programs in
+Python, resolving each year's branches of the code and reproducing SAS's treatment of missing values. Applied to the
+raw survey responses, the port reproduces all 350 summary variables in the Fed's published extracts exactly, for every
+family and implicate in all five cross-sections. The panel program is reproduced in the same way (Appendix A).
 
 ### 2.3 Outcomes
 
-- `LATE` — any loan payment late or missed in the past 12 months (`X3004 = 5`).
-- `LATE60` — any payment 60+ days late in the past 12 months (`X3005 = 1`; asked only if `LATE`).
+The SCF asks families with loan payments whether, in the past twelve months, all payments were made as scheduled and,
+if not, whether any payment was 60 or more days late. I study two outcomes:
 
-Families with no loan payments due are not asked and are coded 0. One 2016 family with `LATE60 = 1` but no
-payments due was set to 0 so that `LATE60 ≤ LATE` always holds.
+- `LATE`: any loan payment late or missed in the past twelve months;
+- `LATE60`: any payment 60 or more days late.
 
-### 2.4 Samples
+Delinquency is common and has moved substantially over time (Figure 1). Among all families, the share with a late
+payment fell from 17.3 percent in 2010 to 12.3 percent in 2019 and then rose to 19.6 percent in 2025; serious
+delinquency followed the same path (8.1, 4.6 and 8.2 percent). Among families with debt, a quarter (25.3 percent)
+reported a late payment in 2025.
 
-| Sample | Part I | Part II |
-|---|---|---|
-| All families | primary | primary |
-| Indebted | debt at interview (`HDEBT = 1`) | debt in 2007 |
-| Robustness / extra | payments due in past year (`X3004 ≠ 0`) | onset: families not late in 2007 |
+![Figure 1](../results/figures/fig1_prevalence_by_year.png)
 
-The indebted sample matters because families without loan payments cannot be late, so in the full population
-debt variables partly separate the outcome mechanically.
+*Figure 1. Share of families with a late payment (blue) and a payment 60+ days late (orange) in the previous twelve
+months, all families and families with debt. Survey-weighted; vertical ticks are 95% confidence intervals.*
 
-### 2.5 Features
+### 2.4 Predictors
 
-46 whitelisted predictors in four nested blocks, identical in both parts:
+I organize 46 predictors into four nested blocks (Table 2). Dollar amounts enter through the inverse hyperbolic sine,
+which preserves the sign of net worth and home equity; ratios use the Fed's definitions or floor denominators at
+$1,000. Because families without loan payments cannot be delinquent, I also analyze the subsample of families with
+debt, where debt variables cannot separate the outcome mechanically. The models exclude survey year, the outcome
+questions, and realized hardship events such as bankruptcy, foreclosure or credit denial.
 
-| Block | Adds |
+**Table 2. Feature blocks**
+
+| Block | Variables added |
 |---|---|
-| M1 Demographics (11) | age, age², married, children, education class, family structure |
-| M2 + Income (18) | income, wage income, normal income, zero/negative income flags, income unusually high/low |
-| M3 + Wealth/liquidity (24) | total, financial, liquid and retirement assets; no liquid assets; liquid assets / income |
-| M4 + Debt/housing (46) | net worth and negative net worth, has debt, total/credit-card/mortgage/installment/education/vehicle debt, monthly payments, payments / income (total, consumer, revolving), debt / income, debt / assets, liquid assets / debt, debt shares, homeownership, home value and equity |
-
-Dollar amounts use `asinh` (keeping negative net worth negative); constructed ratios floor denominators at
-$1,000; all transforms are fixed formulas, so nothing is fitted on test data. Net worth is placed in M4 because,
-with total assets in M3, it would reveal total debt. Part II adds 2007 delinquency (`LATE`, `LATE60` in 2007) as
-lagged features.
-
-### 2.6 Leakage controls
-
-- **Banned from all models:** outcome sources (`LATE`, `LATE60`, `X3004`, `X3005`; in Part II the 2009 values),
-  family and implicate IDs, weights, survey year, and realized hardship events (bankruptcy, foreclosure, payday
-  loans, credit denial, emergency borrowing).
-- **Splits:** the five implicates of a family always stay together; test data never inform features, transforms,
-  thresholds or hyperparameters.
-- **Timing (Part II):** 2007 interviews ran May 2007–March 2008 and 2009 interviews July 2009–January 2010, so
-  the 2007 reference period ends before the 2009 one begins; 2007 delinquency is legitimately prior information.
-- **Simultaneity (Part I):** some cross-sectional features (low liquidity, card balances, unusually low income)
-  can be consequences of the same hardship. This is not leakage for a classification task, since all of it is
-  observed at the interview, but it is why Part I is not presented as forecasting, and Part II measures how large
-  the contemporaneous component is (§6).
+| M1 Demographics | age, age², marital status, children, education, family structure |
+| M2 Income | income, wage income, normal income, zero/negative income, income unusually high or low |
+| M3 Wealth and liquidity | total, financial, liquid and retirement assets; no liquid assets; liquid assets relative to income |
+| M4 Debt and housing | net worth, debt by type, monthly payments, payment-to-income ratios, debt-to-income, debt-to-assets, liquid assets relative to debt, debt composition, homeownership, home value and equity |
 
 ---
 
-# Part I — Classification: who has recently fallen behind? (2010–2025)
+## 3. Empirical Design
 
-## 3. Design
+### 3.1 Models and estimation
 
-### 3.1 Out-of-time validation and tuning
+I compare a constant-probability benchmark, L2-regularized logistic regression and gradient-boosted trees (XGBoost).
+Each model is estimated separately on each of the five implicates, with survey weights in the loss function, and
+results are averaged across implicates. Performance is measured by survey-weighted ROC AUC, precision-recall AUC
+(PR-AUC), Brier score and calibration. Standard errors follow the Federal Reserve's method, combining variation across
+999 replicate weights with variation across implicates; differences between models are tested on the same households
+and replicate weights.
 
-| Split | Train | Evaluate |
-|---|---|---|
-| Tuning fold 1 | 2010, 2013 | 2016 |
-| Tuning fold 2 | 2010, 2013, 2016 | 2019 |
-| Final model | 2010–2019 | **2025, scored once** |
+### 3.2 Classification: out-of-time evaluation
 
-- **Models:** constant (weighted prevalence), L2 logistic regression with weighted standardization, XGBoost.
-- **Implicates:** each model is fit separately on each implicate; results are mean and range across implicates.
-- **Weights:** survey weights in fitting (each training wave rescaled to equal total weight) and in all metrics.
-- **Tuning:** logit `C` ∈ {0.001, …, 100}; XGBoost depth ∈ {2, 3, 4, 6}, learning rate 0.05, early stopping on the
-  validation wave. Selection by lowest validation log loss averaged over folds and implicates. Final tree count =
-  mean early-stopping iteration. Selected for M4: logit `C = 0.1` throughout; XGBoost depth 3–4, 126–185 trees.
-- **Lock:** code and configuration were committed (config hash recorded) before any model saw 2025.
-- **Tuning sensitivity:** the surface is flat (validation log loss 0.3062–0.3078 across XGBoost depths for the
-  main model), so results do not hinge on tuning.
+The cross-sectional models are tuned on the historical waves with forward-chaining validation—training on 2010 and
+2013 to predict 2016, and on 2010–2016 to predict 2019—choosing hyperparameters by validation log loss. The final
+models are re-estimated on 2010–2019 and evaluated once on 2025. The specification was fixed and committed to version
+control before the 2025 data were scored, so no feature, transformation or hyperparameter was influenced by the test
+wave.
 
-### 3.2 Metrics and uncertainty
+### 3.3 Prediction: the 2007–2009 panel
 
-ROC AUC; PR-AUC against prevalence; Brier score; log loss; recall and lift in the top 10% of predicted risk;
-calibration intercept, slope and binned plots. Confidence intervals follow the Fed codebook: metrics recomputed
-under 999 replicate weights (sampling variance, implicate 1) combined with the variance across implicates,
-`SE = √(6/5·Var_imp + Var_samp)`; predictions are held fixed, so intervals reflect uncertainty in the 2025
-evaluation. Model comparisons are paired (same replicate weights for both).
+In the panel, predictors come from the 2007 interview (May 2007–March 2008) and outcomes from the 2009 re-interview
+(July 2009–January 2010), whose reference period covers the height of the financial crisis. The two reference periods
+do not overlap. I compare four information sets: 2007 demographics, the full 2007 balance sheet, 2007 delinquency
+alone, and the 2007 balance sheet together with 2007 delinquency. As a benchmark, the same families' 2009 balance
+sheets are used to classify 2009 delinquency. With a single panel, models are evaluated by family-grouped five-fold
+cross-validation, with hyperparameters tuned in an inner loop and the same folds used for every model so that all
+comparisons are paired.
 
-## 4. Results
+---
 
-### 4.1 Delinquency over time
+## 4. Classification Results
 
-| Wave | Families | Any late (all) | 60+ days (all) | Any late (indebted) |
-|---|---|---|---|---|
-| 2010 | 6,482 | 17.3% | 8.1% | 22.7% |
-| 2013 | 6,015 | 14.9% | 6.9% | 19.8% |
-| 2016 | 6,248 | 13.5% | 5.8% | 17.1% |
-| 2019 | 5,777 | 12.3% | 4.6% | 15.7% |
-| 2025 | 4,360 | **19.6%** | **8.2%** | **25.3%** |
+### 4.1 Out-of-sample performance in 2025
 
-Standard errors are 0.2–0.7 percentage points; the 2019–2025 rise is about 10 standard errors.
+Table 3 reports performance on the 2025 test wave. Demographics alone achieve an AUC of 0.69. Each additional block
+improves discrimination, and the full model reaches 0.86 for both outcomes. Precision-recall performance improves
+proportionally more: PR-AUC rises from 0.33 to 0.57 for any late payment, against a base rate of 0.20, and from 0.17 to
+0.36 for serious delinquency, against 0.08. The households in the top decile of predicted risk account for 32 percent
+of late payers and 42 percent of serious delinquencies.
 
-![Delinquency by year](../results/figures/fig1_prevalence_by_year.png)
+**Table 3. Classification performance on the 2025 test wave (all families)**
 
-### 4.2 Locked 2025 test
-
-| Features | Model | Any late: AUC (95% CI) | PR-AUC | 60+ days: AUC (95% CI) | PR-AUC |
+| Information | Model | `LATE` AUC | `LATE` PR-AUC | `LATE60` AUC | `LATE60` PR-AUC |
 |---|---|---|---|---|---|
-| — | Constant | 0.500 | 0.196 | 0.500 | 0.082 |
-| M1 demographics | Logit | 0.690 (0.670–0.709) | 0.33 | 0.686 (0.657–0.715) | 0.17 |
-| M2 + income | XGBoost | 0.735 | 0.37 | 0.746 | 0.20 |
-| M3 + wealth | XGBoost | 0.791 | 0.45 | 0.800 | 0.25 |
-| M4 + debt/housing | Logit | 0.858 (0.846–0.869) | 0.56 | 0.862 (0.843–0.882) | 0.35 |
-| M4 + debt/housing | XGBoost | **0.863** (0.851–0.874) | **0.57** | **0.867** (0.848–0.885) | **0.36** |
+| Base rate | Constant | 0.500 | 0.196 | 0.500 | 0.082 |
+| M1 Demographics | Logit | 0.690 [0.670, 0.709] | 0.33 | 0.686 [0.657, 0.715] | 0.17 |
+| M2 + Income | XGBoost | 0.735 | 0.37 | 0.746 | 0.20 |
+| M3 + Wealth and liquidity | XGBoost | 0.791 | 0.45 | 0.800 | 0.25 |
+| M4 + Debt and housing | Logit | 0.858 [0.846, 0.869] | 0.56 | 0.862 [0.843, 0.882] | 0.35 |
+| M4 + Debt and housing | XGBoost | 0.863 [0.851, 0.874] | 0.57 | 0.867 [0.848, 0.885] | 0.36 |
 
-Indebted families, M4: AUC 0.809–0.811 (any late) and 0.816–0.826 (60+ days). The full model's top 10% of
-predicted risk contains 32% of late payers (lift 3.2) and 42% of those 60+ days late (lift 4.2).
+*Notes: Models trained on 2010–2019. Brackets are 95% confidence intervals from SCF replicate weights and implicates.*
 
-![ROC and precision-recall](../results/figures/fig2_roc_pr_2025.png)
+### 4.2 Where the information is
 
-### 4.3 What each information block adds
+Figure 2 traces performance as blocks are added, separately for all families and for families with debt. For all
+families, the debt and housing block brings the largest gain (0.07–0.08 AUC), but part of that gain is mechanical:
+debt variables reveal which families have payments that can be missed. Among families with debt, the picture changes.
+Wealth and liquidity account for most of the improvement over demographics, and the full debt block adds only about
+0.02 AUC (0.016 for any late payment, 95% CI 0.008–0.025).
 
-![Incremental blocks](../results/figures/fig4_incremental_blocks_2025.png)
+![Figure 2](../results/figures/fig4_incremental_blocks_2025.png)
 
-- Every step M1→M2→M3→M4 improves AUC significantly in paired tests, in both samples and for both outcomes.
-- **All families:** the debt/housing block adds the most (+0.07–0.08 AUC), partly because families without debt
-  cannot be late.
-- **Indebted families:** wealth and liquidity carry most of the signal; adding debt detail raises AUC by only about
-  0.02 (e.g. +0.016, CI 0.008–0.025), and for 60+ days late the PR-AUC gain is not significant.
-- **Logit vs XGBoost:** no significant difference at M4 in any setting (largest gap 0.010 AUC).
+*Figure 2. Performance on the 2025 test as feature blocks are added. Solid lines: XGBoost; dashed: logistic
+regression. Blue: all families; orange: families with debt.*
 
-### 4.4 What the model learned
+Feature-level importance confirms this pattern (Figure 3). Liquid assets are the most important single variable in
+nearly every model; low liquidity is associated with sharply higher predicted delinquency. Debt-to-assets and the
+unsecured share of debt follow, along with income that was unusually low relative to normal. Debt levels,
+payment-to-income ratios and credit-card balances matter little once liquidity and debt structure are accounted for.
 
-![Feature importance](../results/figures/fig5b_feature_importance_2025.png)
+![Figure 3](../results/figures/fig5b_feature_importance_2025.png)
 
-- **Liquid assets** are the most informative single feature in nearly every model; low liquidity goes with higher
-  predicted delinquency.
-- **Debt-to-assets** and the **unsecured share of debt** come next among all families (debt-to-assets also encodes
-  having any debt).
-- **Income unusually low**, age, vehicle and installment debt, and home equity contribute less.
-- Block-level permutation is the more reliable summary because debt totals, ratios and shares are correlated.
+*Figure 3. Permutation importance in the 2025 test wave (XGBoost, full feature set): the fall in AUC when a variable
+is randomly shuffled.*
 
-![SHAP summary](../results/figures/fig5c_shap_summary_2025.png)
+### 4.3 Model complexity
 
-### 4.5 Calibration and the 2025 shift
+Gradient boosting offers no meaningful advantage. With the full feature set, the difference between XGBoost and
+logistic regression never exceeds 0.01 AUC and is not statistically significant in any sample or outcome. Once
+heavy-tailed balance-sheet variables are transformed appropriately, the relationship between finances and delinquency
+is captured by a linear index.
 
-![Calibration](../results/figures/fig3_calibration_2025.png)
+### 4.4 Rankings and levels over time
 
-Every model under-predicts 2025 delinquency: calibration-in-the-large is +0.36 to +0.71 on the log-odds scale
-(e.g. +0.67, CI 0.60–0.75), with every interval above zero; in the riskiest decile about 63% were late versus 44%
-predicted. In the backtests the sign was reversed (over-prediction), because delinquency was falling until 2019.
-Survey year is deliberately not a predictor, so the reversal cannot be anticipated. Ranking, by contrast, is
-stable and even sharper in 2025 (AUC 0.86 versus 0.81–0.82 in the backtests).
+Models trained on 2010–2019 rank 2025 households at least as well as they ranked households in the validation years
+(AUC 0.86 in 2025 versus 0.81–0.82 when predicting 2016 and 2019). They do not, however, capture the 2025 level of
+delinquency (Figure 4). Every model under-predicts: the calibration intercept is between 0.36 and 0.71 on the log-odds
+scale, and in the riskiest decile 63 percent of families were delinquent against 44 percent predicted. The shortfall is
+largest for households under 55 and for the bottom three income quintiles. Because the models deliberately exclude
+calendar time, they carry the historical relationship between balance sheets and delinquency into a period in which
+the same balance sheet was associated with more distress.
 
-### 4.6 Subgroups
+![Figure 4](../results/figures/fig3_calibration_2025.png)
 
-![Subgroups](../results/figures/fig6_subgroups_2025.png)
-
-Discrimination is good in every age and income group (AUC 0.80–0.95; cells with fewer than 50 delinquent
-families flagged as unstable). Under-prediction is concentrated in households under 55 and in the bottom three
-income quintiles (observed 23–29% versus predicted 14–18% for any late payment).
-
-### 4.7 Robustness
-
-| Check | Result |
-|---|---|
-| Backtests (predicting 2016, 2019) | same ordering of blocks and models |
-| Payments-due sample instead of debt at interview | AUC within 0.01 |
-| Buy-now-pay-later debt (in Fed totals only from 2025) removed | AUC changes < 0.004; does not explain the higher 2025 AUC |
-| Stability across implicates | ±0.005–0.01 AUC |
-| Reproducibility | refit models reproduce saved predictions exactly |
+*Figure 4. Calibration in 2025. Left: observed versus predicted delinquency by decile of predicted risk. Right:
+distribution of predicted risk for delinquent and non-delinquent families.*
 
 ---
 
-# Part II — Prediction: who will fall behind? (2007–2009 panel)
+## 5. Prediction Results
 
-## 5. Design
+### 5.1 Two years ahead
 
-### 5.1 Why the panel
+Table 4 and Figure 5 report the panel results. Balance sheets observed in 2007 predict 2009 delinquency with an AUC of
+0.76 for any late payment and 0.78 for serious delinquency, compared with 0.69–0.72 for 2007 demographics. Adding 2007
+delinquency raises the AUC to 0.78 and 0.80. The same families' 2009 balance sheets classify 2009 delinquency with AUC
+0.84 and 0.88.
 
-Part I measures predictors and outcome at the same interview. The SCF 2007–2009 panel re-interviewed 2007
-families in 2009, so 2007 information can be used to predict delinquency during the financial crisis. Every
-predictor precedes the outcome period (§2.6).
+**Table 4. Predicting 2009 delinquency (logistic regression, cross-validated AUC)**
 
-### 5.2 Setup
+| Information | All families: `LATE` | All families: `LATE60` | Families with debt in 2007: `LATE` | Not late in 2007: `LATE` |
+|---|---|---|---|---|
+| 2007 demographics | 0.691 | 0.716 | 0.664 | 0.698 |
+| 2007 balance sheet | 0.756 | 0.780 | 0.712 | 0.758 |
+| 2007 delinquency only | 0.626 | 0.618 | 0.620 | — |
+| 2007 balance sheet + 2007 delinquency | 0.783 | 0.795 | 0.749 | — |
+| 2009 balance sheet (same-year benchmark) | 0.839 | 0.875 | 0.808 | 0.842 |
 
-| Element | Choice |
-|---|---|
-| Outcome | `LATE`, `LATE60` reported in 2009 (17.8% and 7.8%, weighted; 550 and 246 families per implicate) |
-| Prospective feature sets | 2007 blocks M1–M4; 2007 delinquency only; 2007 M4 + 2007 delinquency |
-| Benchmark | 2009 M4 balance sheet for the 2009 outcome (same families, contemporaneous) |
-| Samples | all families; indebted in 2007; onset (not late in 2007) |
-| Weights | 2009 panel weight (nonresponse-adjusted; about 113 million families) |
-| Validation | one panel and no later wave, so **family-grouped 5-fold cross-validation**; identical folds for every implicate, feature set and model (paired comparisons); one out-of-fold prediction per family and implicate |
-| Tuning | nested: 3 inner folds within each training fold; logit `C` ∈ {0.001, …, 100}, XGBoost depth ∈ {2, 3, 4} with early stopping; selection by inner log loss over folds and implicates (chosen: mostly `C` = 0.01–0.1 and depth 2) |
-| Uncertainty | panel replicate weights + implicates, as in Part I |
+*Notes: SCF 2007–2009 panel; family-grouped five-fold cross-validation with nested tuning. Standard errors are
+0.007–0.02; confidence intervals in `results/panel/tables/cv_metrics_ci.csv`.*
 
-## 6. Results
+![Figure 5](../results/panel/figures/figP1_prospective_auc.png)
 
-### 6.1 Prospective accuracy
+*Figure 5. Cross-validated AUC for predicting 2009 delinquency from different information sets, with 95% confidence
+intervals. The bottom row uses the same families' 2009 balance sheets.*
 
-![Prospective AUC](../results/panel/figures/figP1_prospective_auc.png)
+### 5.2 Persistence and onset
 
-**ROC AUC (logit, 95% CI):**
+Delinquency is persistent: 45 percent of families that were late in 2007 were late again in 2009, compared with 13
+percent of families that had been current. Persistence alone is a weak predictor, however (AUC 0.62–0.63), because
+most delinquency is new. About 60 percent of the families late in 2009 had been current in 2007, and their onset is
+predictable from 2007 balance sheets with an AUC of 0.76 (0.79 for serious delinquency). Among families with debt in
+2007, debt detail again adds little beyond liquidity and wealth.
 
-| Sample | Information used | Any late in 2009 | 60+ days late in 2009 |
-|---|---|---|---|
-| All families | 2007 demographics | 0.691 (0.674–0.708) | 0.716 (0.688–0.744) |
-| | 2007 balance sheet | 0.756 (0.741–0.772) | 0.780 (0.757–0.804) |
-| | 2007 delinquency only | 0.626 (0.601–0.652) | 0.618 (0.579–0.657) |
-| | 2007 balance sheet + 2007 delinquency | **0.783** (0.766–0.800) | **0.795** (0.770–0.820) |
-| | 2009 balance sheet (benchmark) | 0.839 (0.825–0.853) | 0.875 (0.858–0.892) |
-| Indebted in 2007 | 2007 balance sheet | 0.712 (0.695–0.729) | 0.749 (0.723–0.775) |
-| | + 2007 delinquency | 0.749 (0.730–0.768) | 0.766 (0.738–0.794) |
-| Not late in 2007 (onset) | 2007 balance sheet | 0.758 (0.737–0.779) | 0.794 (0.761–0.826) |
+### 5.3 What predicts ahead
 
-Best prospective model, all families: PR-AUC 0.40 (prevalence 0.178) and 0.21 (prevalence 0.078); the top 10% of
-predicted risk contains 26% and 30% of delinquent families (lift 2.6 and 3.0). Calibration-in-the-large is within
-±0.04 of zero for every model (no time shift inside one period).
-
-### 6.2 Paired comparisons (all families)
-
-| Comparison | Any late | 60+ days late |
-|---|---|---|
-| 2007 balance sheet − 2007 demographics | +0.065 | +0.064 |
-| debt/housing block (M4 − M3), 2007 | +0.026 | +0.041 |
-| adding 2007 delinquency to the 2007 balance sheet | +0.027 | +0.014 (XGBoost +0.007, n.s.) |
-| 2009 vs 2007 balance sheet (contemporaneous premium) | +0.083 | +0.095 |
-| XGBoost − logit | 0.000 (n.s.) | +0.006 (n.s.) |
-
-All intervals exclude zero unless marked n.s. Among families indebted in 2007, debt detail again adds little to
-wealth and liquidity for any late payment (+0.008, n.s., logit).
-
-### 6.3 Persistence and onset
-
-45% of families late in 2007 were late again in 2009, versus 13% of families who were current (3.5 times the
-rate). Yet about 60% of 2009 delinquency came from families current in 2007, and their onset is predictable from
-2007 finances (AUC 0.76–0.79). 2007 delinquency alone is a weak predictor (AUC 0.62–0.63).
-
-### 6.4 What drives prospective predictions
-
-![Prospective block importance](../results/panel/figures/figP2_prospective_block_importance.png)
-
-The debt/housing and wealth/liquidity blocks carry most of the signal; demographics matter more than in the
-cross-section; the income block adds essentially nothing once wealth is known. 2007 delinquency is the single most
-important feature in the any-late models (AUC drop 0.04–0.06), followed in the logit by liquid assets, college
-education and age.
+Permutation importance in the prospective models assigns most of the signal to the wealth-and-liquidity and
+debt-and-housing blocks. Demographics matter more than in the cross-section, plausibly reflecting life-cycle
+differences in exposure to the crisis, while the income block contributes nothing once wealth is known. Prior
+delinquency is the most important single variable, followed in the logistic model by liquid assets, education and age.
 
 ---
 
-# Part III — Synthesis
+## 6. Discussion
 
-## 7. What the two exercises show together
+**Liquidity as the margin of distress.** Both designs point to the same mechanism. What separates borrowers who fall
+behind from those who do not is less how much they owe than whether they have a liquid buffer relative to their
+obligations. This is consistent with the view that delinquency arises when income or expense shocks meet thin
+liquidity, rather than from high leverage alone.
+
+**How much of the signal is forward-looking.** Table 5 compares the two designs. Measured at the same time as the
+outcome, the balance sheet improves on demographics by 0.15–0.18 AUC; measured two years earlier, by 0.065. Roughly
+half of the cross-sectional signal therefore anticipates future distress, and the rest reflects distress already
+under way—depleted savings and accumulated balances that accompany missed payments.
+
+**Table 5. Same-year versus two-years-ahead information**
 
 | | Same-year information | Two years earlier |
 |---|---|---|
-| Balance sheet vs demographics only | +0.15–0.18 AUC (Part I; panel 2009 benchmark) | +0.065 AUC (panel 2007) |
-| Best AUC | 0.86 (2025 test); 0.84–0.88 (panel 2009) | 0.78–0.80 (panel 2007 + past delinquency) |
-| Calibration | shifts across eras (2025 under-predicted) | stable within one period |
+| Gain of balance sheet over demographics (AUC) | 0.15–0.18 | 0.065 |
+| Best AUC | 0.86 (2025 test); 0.84–0.88 (panel, 2009) | 0.78–0.80 (panel, 2007 with past delinquency) |
+| Calibration | shifts across eras | stable within a period |
 
-1. **Liquidity is the common core.** In both designs, wealth and liquidity carry most of the information among
-   borrowers, and detailed debt measures add relatively little.
-2. **About half of the balance-sheet signal is forward-looking.** Measured two years earlier, the balance sheet
-   keeps less than half of its same-year advantage over demographics. The cross-sectional association is not only
-   reverse causality, but a substantial part of it is contemporaneous: finances partly reflect the hardship that
-   produces late payments.
-3. **Rankings travel; levels do not.** Across 15 years the same households rank as high-risk, but aggregate
-   delinquency moves with conditions that balance sheets do not capture. Predicted probabilities need
-   recalibration before being read as rates in a new period.
-4. **Simple models suffice.** In neither design does gradient boosting beat a well-specified logistic regression.
+**Implications for measurement and early warning.** The cross-sectional models can impute recent payment problems in
+surveys and administrative data that record finances but not delinquency, and they describe which households are
+under strain at a point in time. For early warning, the panel results show that a single balance-sheet snapshot
+identifies at-risk households years ahead, including those with no history of delinquency, but that predicted
+probabilities must be recalibrated to current conditions: the ranking of households is stable, while the level of
+delinquency moves with the macroeconomy.
 
-**Why both parts are needed.** The classification exercise provides scale (29,000 families), recency, a true
-out-of-time test, evidence of stability over 15 years, the distribution-shift result, and the same-year benchmark
-that gives the prediction results meaning. The prediction exercise answers the main objection to the
-classification, namely that predictors and outcome are measured at the same time, and quantifies how much of the
-signal is usable for forecasting.
+**Scope.** The cross-sectional results describe recent rather than future delinquency, the panel covers a single
+crisis episode, and the importance measures describe predictive content rather than causal effects.
 
-## 8. Limitations
+---
 
-- **Part I is retrospective classification**, not a forecast; low liquidity may be a consequence of distress.
-- **Part II covers one panel in one crisis period** and is validated by cross-validation, not on a later panel.
-  About 11% of eligible 2007 families did not complete the 2009 interview (the Fed's nonresponse-adjusted weights
-  are used).
-- **Confidence intervals** cover sampling and imputation uncertainty of the evaluation with predictions held
-  fixed, not variability from re-drawing the training data; subgroup and backtest results report implicate ranges.
-- **Not causal:** importance measures and SHAP values describe models, not interventions.
-- **Not yet run:** raw-population-weight and recent-waves-only robustness, recalibration on historical data, and a
-  model with behavioural variables (saving habits, risk attitude, financial literacy).
+## 7. Conclusion
 
-## 9. Reproducibility
+Household balance sheets contain substantial information about debt-payment problems, and that information is
+concentrated in liquidity. Simple, transparent models extract it as well as flexible ones; the resulting rankings
+hold up across fifteen years of survey data and two years into the future, while the overall level of delinquency
+shifts with economic conditions. A natural next step is to combine balance-sheet rankings with aggregate indicators,
+so that early-warning models inherit the stability of household-level rankings and the timeliness of macroeconomic
+data.
+
+---
+
+## Appendix A. Data Construction and Validation
+
+**Fed program port.** A Python interpreter executes the Federal Reserve's summary-variable programs
+(`bulletin.macro.txt` for the cross-sections, `fedstables.macro.txt` for the panel). For the cross-sections, all
+350 variables match the Fed's published extracts exactly for every family-implicate in all five waves. For the panel,
+173 of 188 variables (2007) and 181 of 188 (2009) match exactly; the differences come from one family whose stock
+holdings were revised in a later data release and from one extract variable published in nominal rather than real
+dollars.
+
+**Labels.** `LATE = 1` if the household reports a late or missed loan payment (`X3004 = 5`); `LATE60 = 1` if any
+payment was 60+ days late (`X3005 = 1`). Families without loan payments are coded 0.
+
+**Weights and implicates.** `WGT = X42001/5` in the cross-sections; panel weight `P42001`. Each model is fit per
+implicate; implicates of a family always share a fold.
+
+## Appendix B. Estimation Details
+
+| | Classification | Prediction |
+|---|---|---|
+| Tuning | forward-chaining folds (2010–13→2016, 2010–16→2019) | 5 outer × 3 inner family-grouped folds |
+| Logit penalty `C` | {0.001, …, 100}; selected 0.1 for the full model | selected mostly 0.01–0.1 |
+| XGBoost | depth {2, 3, 4, 6}, learning rate 0.05, early stopping; selected depth 3–4, 126–185 trees | depth {2, 3, 4}; selected mostly depth 2 |
+| Selection criterion | validation log loss, averaged over folds and implicates | inner log loss, averaged over folds and implicates |
+
+## Appendix C. Robustness
+
+| Check | Result |
+|---|---|
+| Debt sample defined by payments due in the past year | AUC within 0.01 of the baseline debt sample |
+| Removing buy-now-pay-later balances from 2025 debt totals | AUC changes by less than 0.004 |
+| Variation across implicates | ±0.005–0.01 AUC |
+| Subgroups by age and income quintile (2025) | AUC 0.80–0.95 in every group (Figure C1) |
+| Tuning sensitivity | validation log loss varies by less than 0.002 across XGBoost depths |
+
+![Figure C1](../results/figures/fig6_subgroups_2025.png)
+
+*Figure C1. Discrimination and calibration by age and income quintile, 2025 test wave.*
+
+## Appendix D. Replication
 
 ```bash
 python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' pyarrow
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --build                          # Fed variables
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures   # Part I
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --panel                          # Part II
-.venv/bin/python -m pytest -q                                                                    # 52 tests
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --build
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --panel
+.venv/bin/python -m pytest -q
 ```
 
-Run time on a laptop: about 3 minutes for Part I and 3.5 minutes for Part II. Python 3.12, pandas, NumPy,
-scikit-learn, XGBoost, matplotlib; fixed seed. Tests cover the SAS semantics and Fed-extract match, ID and implicate
-handling, temporal and family-grouped splits, leakage whitelists, weight scaling, weighted metrics and the
-replicate-weight formula.
-
-| Output | Location |
-|---|---|
-| Part I detailed report | `results/report.md` |
-| Part II detailed report | `results/panel/report.md` |
-| Tables | `results/tables/`, `results/panel/tables/` |
-| Figures | `results/figures/`, `results/panel/figures/` |
-| Fed-extract validation | `results/tables/macro_validation.csv`, `results/tables/panel_macro_validation.csv` |
-| Run metadata (versions, hyperparameters, timings) | `results/run_metadata.json`, `results/panel/run_metadata.json` |
+The SCF microdata are public and are downloaded from the Federal Reserve Board; file sources and checksums are listed
+in `data/PROVENANCE.json`. The full pipeline runs in under ten minutes on a laptop. Detailed results, including every
+table behind this paper, are in `results/report.md` (cross-sections) and `results/panel/report.md` (panel).

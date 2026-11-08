@@ -1,72 +1,97 @@
-# scf-distress-ml
+# Thin Buffers: Classifying and Predicting Household Delinquency
 
-Retrospective classification of household delinquency in the Survey of Consumer Finances:
+Which U.S. households fall behind on their debts, and can it be seen coming? This project trains survey-weighted
+machine-learning models on Federal Reserve **Survey of Consumer Finances** microdata (2007–2025) to identify
+households that missed loan payments, and to predict who will miss them two years later.
 
-- `LATE` — any loan payment late or missed in the past 12 months (`X3004 == 5`)
-- `LATE60` — any payment 60+ days past due in the past 12 months (`X3005 == 1`)
+📄 **Paper:** [`docs/scf_delinquency_report.md`](docs/scf_delinquency_report.md)
 
-This is **not** prospective default forecasting and **not** causal inference. See `docs/proposal.md`.
+---
 
-**Full combined report (classification + prediction): [`docs/scf_delinquency_report.md`](docs/scf_delinquency_report.md).**
+## Key takeaways
 
-## Design (current)
+1. **The balance sheet identifies delinquent households, and liquidity carries the signal.**
+   Out of sample on the 2025 survey, AUC rises from **0.69** with demographics alone to **0.86** with the full
+   balance sheet. Liquid assets are the single most informative variable.
 
-| Role | Waves |
-|---|---|
-| Tuning (forward-chaining) | train 2010–2013 → validate 2016; train 2010–2016 → validate 2019 |
-| Final training | 2010, 2013, 2016, 2019 |
-| Locked out-of-sample test | 2025 (scored once) |
-| Excluded | 2022 (all roles) |
+2. **Among borrowers, how much you hold matters more than how much you owe.**
+   Once liquidity and wealth are known, detailed debt and debt-service measures add only about **0.02 AUC**.
 
-Data source: **full public SCF datasets** (raw X-variables). Summary variables (`INCOME`, `NETWORTH`,
-`PIRTOTAL`, ...) are rebuilt in Python from the Fed's `bulletin.macro.txt`, with dollar amounts converted to 2025
-dollars using the macro's CPI-U-RS factors. Models are fit separately on each of the five implicates and
-results are reported as mean and range across implicates.
+3. **Simple models are enough.** Regularized logistic regression matches XGBoost in every specification; there is
+   no hidden nonlinearity to find.
 
-## Data layout
+4. **Rankings travel across time; levels don't.** Models trained on 2010–2019 rank 2025 households accurately, but
+   delinquency jumped from **12% to 20%** between 2019 and 2025 and the models under-predict it. Risk scores need
+   recalibration to current conditions.
 
-Put each wave's full public dataset in its own folder (gitignored):
+5. **About half of the signal is forward-looking.** In the 2007–2009 panel, 2007 balance sheets predict delinquency
+   during the financial crisis two years later (**AUC 0.78** with past delinquency) versus 0.84 for same-year data.
+   They also predict new delinquency: **60%** of households late in 2009 had been current in 2007, and their onset
+   is predictable from 2007 finances (AUC 0.76).
+
+![Out-of-sample performance by information set](results/figures/fig4_incremental_blocks_2025.png)
+
+*Performance on the locked 2025 test as information is added: demographics → income → wealth and liquidity → debt
+and housing. Blue: all families; orange: families with debt.*
+
+![Predicting two years ahead](results/panel/figures/figP1_prospective_auc.png)
+
+*Predicting 2009 delinquency from information observed in 2007, compared with same-year information.*
+
+---
+
+## What's under the hood
+
+- **The Fed's own variable definitions, reproduced exactly.** A small SAS interpreter runs the Federal Reserve's
+  summary-variable programs in Python; it matches the Fed's published data on all 350 variables, for every
+  household, in all five survey waves.
+- **Survey-correct machine learning.** One model per multiple-imputation implicate, survey weights in training and
+  evaluation, and confidence intervals from the SCF's 999 replicate weights.
+- **An honest test.** Models were tuned on 2010–2019 with forward-chaining validation, the specification was
+  committed, and the 2025 survey was scored once.
+- **Genuine prediction.** Family-grouped, nested cross-validation on the 2007–2009 panel, where every predictor
+  precedes the outcome.
+
+| | Classification | Prediction |
+|---|---|---|
+| Data | SCF 2010, 2013, 2016, 2019, 2025 (28,882 families) | SCF 2007–2009 panel (3,857 families) |
+| Question | who has recently fallen behind? | who will fall behind two years later? |
+| Evaluation | train 2010–2019, test once on 2025 | nested family-grouped cross-validation |
+| Best AUC | 0.86 | 0.78 (0.84 same-year benchmark) |
+
+## Repository
 
 ```text
-data/raw/2010/   data/raw/2013/   data/raw/2016/   data/raw/2019/   data/raw/2025/
+docs/scf_delinquency_report.md   the paper
+docs/writeup.md                  short project summary
+results/report.md                detailed cross-sectional results
+results/panel/report.md          detailed panel results
+results/figures/, results/panel/figures/   all figures
+results/tables/, results/panel/tables/     all result tables
+src/scf_distress/                pipeline code
+  sasport.py                       SAS interpreter for the Fed programs
+  prepare.py, panel.py             building SCF variables from raw data
+  features.py                      labels, samples, feature blocks
+  models.py, pipeline.py           estimation, tuning, locked test
+  evaluate.py, variance.py         weighted metrics, replicate-weight inference
+  explain.py, figures.py           importance, SHAP, subgroups, figures
+  panel_model.py, panel_analysis.py  two-years-ahead prediction
+tests/                           52 unit tests
 ```
 
-Replicate-weight files (`scf<year>rw1*`) go in the same folder as the main file for that wave.
+## Reproduce
 
-## Commands
+The SCF data are public. Download the full public Stata files from the
+[Federal Reserve](https://www.federalreserve.gov/econres/scfindex.htm) into `data/raw/`
+(`p10i6.dta`, `p13i6.dta`, `p16i6.dta`, `p19i6.dta`, `p25i6.dta`, `p09pi6.dta`), and the summary extracts and
+replicate weights into `data/external/` as listed in `data/PROVENANCE.json`. Then:
 
 ```bash
 python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' pyarrow
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --build   # Fed variables from raw data
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --run     # audit, tuning, locked 2025 test
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --build                              # SCF variables
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures  # classification
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --panel                              # prediction
 .venv/bin/python -m pytest -q
 ```
 
-Outputs (`results/tables/`): `data_audit_by_year.csv`, `outcome_prevalence.csv`, `tuning_results.csv`,
-`test_by_implicate.csv`, `model_performance.csv` (mean/min/max over implicates), `logit_coefficients.csv`;
-predictions in `results/predictions/test_2025.parquet`; versions, hyperparameters and timings in
-`results/run_metadata.json`.
-
-## Building the Fed summary variables
-
-`src/scf_distress/sasport.py` runs the Fed's own SAS macro (`docs/bulletin.macro.txt`) in Python: it resolves
-the year branches for the public data and executes the DATA step vectorized over records. `prepare.build_wave`
-wraps it. For 2010, 2013, 2016, 2019 and 2025, all 350 variables computed in the macro's main DATA step match the
-Fed summary extract **exactly for every family-implicate** (`results/tables/macro_validation.csv`; checked in
-`tests/test_sasport.py`). The 10 percentile-category variables computed after the main step (`NWCAT`, `INCCAT`, ...)
-are not ported. Dollar values are in 2025 dollars (`cpibase=4789`).
-
-Processed waves: `data/processed/bullit_<year>.parquet` (macro variables plus the raw X-variables they use).
-File checksums and sources: `data/PROVENANCE.json`. The summary extracts in `data/external/` are used only for
-this check, never as model inputs.
-
-## Status
-
-- [x] Config, temporal splits, weight handling, weighted metrics, unit tests
-- [x] Data loading and ID/implicate validation
-- [x] Port of Fed summary-variable macro, checked against the summary extracts
-- [x] Feature construction (whitelist, blocks M1–M4), samples A/B/B2
-- [x] Models, locked 2025 test, interpretation, figures, report (`results/report.md`)
-- [x] Replicate-weight confidence intervals
-- [x] 2007–2009 panel extension: prospective prediction (`--panel`; `results/panel/report.md`)
-- [ ] Raw-weight and modern-waves-only robustness; historical recalibration; expanded behavioural model
+The full pipeline runs in under ten minutes on a laptop. Python 3.12 · pandas · scikit-learn · XGBoost · matplotlib.
