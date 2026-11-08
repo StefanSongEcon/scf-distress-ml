@@ -1,63 +1,56 @@
 [run] 54 cells, 6 parallel jobs, config sha256=43da9ac30c8b
-joblib.externals.loky.process_executor._RemoteTraceback: 
-"""
-Traceback (most recent call last):
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/externals/loky/process_executor.py", line 490, in _process_worker
-    r = call_item()
-        ^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/externals/loky/process_executor.py", line 291, in __call__
-    return self.fn(*self.args, **self.kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 607, in __call__
-    return [func(*args, **kwargs) for func, args, kwargs in self.items]
-            ^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 192, in one
-    r = run_cell(df, X_all, feat_names, *c, cfg)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 120, in run_cell
-    met = ev.all_metrics(yva, p, wva_raw, cfg["evaluation"]["top_k_share"])
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 146, in all_metrics
-    cal = calibration_intercept_slope(y, p, w)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 139, in calibration_intercept_slope
-    a, b = irls(X, np.zeros_like(lp))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/evaluate.py", line 133, in irls
-    step = np.linalg.solve(X.T @ (v[:, None] * X), X.T @ (w * (y - mu)))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 463, in solve
-    r = gufunc(a, b, signature=signature)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 144, in _raise_linalgerror_singular
-    raise LinAlgError("Singular matrix")
-numpy.linalg.LinAlgError: Singular matrix
-"""
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 250, in <module>
-    main()
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 246, in main
-    cmd_run(cfg, cfg_path, a.jobs)
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/src/scf_distress/pipeline.py", line 196, in cmd_run
-    res = Parallel(n_jobs=jobs, backend="loky", verbose=0)(delayed(one)(c) for c in cells)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 2098, in __call__
-    return output if self.return_generator else list(output)
-                                                ^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1704, in _get_outputs
-    yield from self._retrieve()
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1806, in _retrieve
-    self._raise_error_fast()
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 1885, in _raise_error_fast
-    error_job.get_result(self.timeout)
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 780, in get_result
-    return self._return_or_raise()
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/yingruisong/Documents/Projects/scf-distress-ml/.venv/lib/python3.12/site-packages/joblib/parallel.py", line 795, in _return_or_raise
-    raise self._result
-numpy.linalg.LinAlgError: Singular matrix
+[cell] LATE/A_all/M1/constant done in 0.4s, hp={}
+[cell] LATE/A_all/M2/constant done in 0.4s, hp={}
+[cell] LATE/A_all/M3/constant done in 0.4s, hp={}
+[cell] LATE/A_all/M1/logit done in 1.1s, hp={'C': 0.01}
+[cell] LATE/A_all/M4/constant done in 0.4s, hp={}
+[cell] LATE/A_all/M2/logit done in 1.6s, hp={'C': 0.1}
+[cell] LATE/A_all/M3/logit done in 1.8s, hp={'C': 0.1}
+[cell] LATE/B_indebted/M1/constant done in 0.3s, hp={}
+[cell] LATE/B_indebted/M1/logit done in 1.0s, hp={'C': 0.01}
+[cell] LATE/A_all/M1/xgb done in 4.6s, hp={'max_depth': 3, 'n_estimators': 67}
+[cell] LATE/B_indebted/M2/constant done in 0.3s, hp={}
+[cell] LATE/A_all/M4/logit done in 4.3s, hp={'C': 0.1}
+[cell] LATE/B_indebted/M2/logit done in 1.3s, hp={'C': 0.1}
+[cell] LATE/A_all/M2/xgb done in 6.3s, hp={'max_depth': 3, 'n_estimators': 126}
+[cell] LATE/B_indebted/M3/constant done in 0.3s, hp={}
+[cell] LATE/B_indebted/M1/xgb done in 3.6s, hp={'max_depth': 2, 'n_estimators': 106}
+[cell] LATE/B_indebted/M4/constant done in 0.3s, hp={}
+[cell] LATE/B_indebted/M3/logit done in 1.3s, hp={'C': 0.1}
+[cell] LATE/A_all/M3/xgb done in 8.8s, hp={'max_depth': 2, 'n_estimators': 248}
+[cell] LATE60/A_all/M1/constant done in 0.4s, hp={}
+[cell] LATE/B_indebted/M4/logit done in 2.9s, hp={'C': 0.1}
+[cell] LATE/B_indebted/M2/xgb done in 5.1s, hp={'max_depth': 2, 'n_estimators': 188}
+[cell] LATE60/A_all/M1/logit done in 1.1s, hp={'C': 0.01}
+[cell] LATE60/A_all/M2/constant done in 0.3s, hp={}
+[cell] LATE/B_indebted/M3/xgb done in 6.1s, hp={'max_depth': 2, 'n_estimators': 177}
+[cell] LATE60/A_all/M2/logit done in 1.5s, hp={'C': 0.01}
+[cell] LATE60/A_all/M3/constant done in 0.3s, hp={}
+[cell] LATE60/A_all/M3/logit done in 1.7s, hp={'C': 0.1}
+[cell] LATE60/A_all/M1/xgb done in 4.0s, hp={'max_depth': 3, 'n_estimators': 61}
+[cell] LATE60/A_all/M4/constant done in 0.4s, hp={}
+[cell] LATE/A_all/M4/xgb done in 14.7s, hp={'max_depth': 4, 'n_estimators': 126}
+[cell] LATE60/B_indebted/M1/constant done in 0.3s, hp={}
+[cell] LATE60/A_all/M2/xgb done in 5.7s, hp={'max_depth': 3, 'n_estimators': 102}
+[cell] LATE60/B_indebted/M1/logit done in 1.0s, hp={'C': 0.01}
+[cell] LATE60/B_indebted/M2/constant done in 0.3s, hp={}
+[cell] LATE60/A_all/M4/logit done in 4.5s, hp={'C': 0.1}
+[cell] LATE60/B_indebted/M2/logit done in 1.3s, hp={'C': 0.1}
+[cell] LATE60/B_indebted/M3/constant done in 0.3s, hp={}
+[cell] LATE/B_indebted/M4/xgb done in 12.1s, hp={'max_depth': 3, 'n_estimators': 167}
+[cell] LATE60/B_indebted/M1/xgb done in 3.4s, hp={'max_depth': 2, 'n_estimators': 86}
+[cell] LATE60/B_indebted/M4/constant done in 0.3s, hp={}
+[cell] LATE60/B_indebted/M3/logit done in 1.4s, hp={'C': 0.1}
+[cell] LATE60/A_all/M3/xgb done in 8.1s, hp={'max_depth': 3, 'n_estimators': 141}
+[cell] LATE/B2_payments_due/M4/constant done in 0.3s, hp={}
+[cell] LATE60/B_indebted/M4/logit done in 3.0s, hp={'C': 0.1}
+[cell] LATE60/B_indebted/M2/xgb done in 4.8s, hp={'max_depth': 3, 'n_estimators': 94}
+[cell] LATE60/B2_payments_due/M4/constant done in 0.3s, hp={}
+[cell] LATE/B2_payments_due/M4/logit done in 3.1s, hp={'C': 0.1}
+[cell] LATE60/B_indebted/M3/xgb done in 6.6s, hp={'max_depth': 3, 'n_estimators': 116}
+[cell] LATE60/B2_payments_due/M4/logit done in 3.2s, hp={'C': 0.1}
+[cell] LATE60/A_all/M4/xgb done in 15.3s, hp={'max_depth': 3, 'n_estimators': 184}
+[cell] LATE60/B_indebted/M4/xgb done in 11.8s, hp={'max_depth': 4, 'n_estimators': 145}
+[cell] LATE/B2_payments_due/M4/xgb done in 11.5s, hp={'max_depth': 3, 'n_estimators': 185}
+[cell] LATE60/B2_payments_due/M4/xgb done in 10.9s, hp={'max_depth': 4, 'n_estimators': 133}
+[run] finished in 37s
