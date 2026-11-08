@@ -63,5 +63,6 @@ this check, never as model inputs.
 - [x] Config, temporal splits, weight handling, weighted metrics, unit tests
 - [x] Data loading and ID/implicate validation
 - [x] Port of Fed summary-variable macro, checked against the summary extracts
-- [ ] Feature construction (whitelist, blocks M1–M4), samples A/B
-- [ ] Models, evaluation, figures, report
+- [x] Feature construction (whitelist, blocks M1–M4), samples A/B/B2
+- [x] Models, locked 2025 test, interpretation, figures, report (`results/report.md`)
+- [ ] Replicate-weight confidence intervals; raw-weight and modern-waves-only robustness; expanded behavioural model

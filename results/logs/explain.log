@@ -1,0 +1,10 @@
+[explain] LATE/A_all/M4/logit done
+[explain] LATE/A_all/M4/xgb done
+[explain] LATE/B_indebted/M4/logit done
+[explain] LATE/B_indebted/M4/xgb done
+[explain] LATE60/A_all/M4/logit done
+[explain] LATE60/A_all/M4/xgb done
+[explain] LATE60/B_indebted/M4/logit done
+[explain] LATE60/B_indebted/M4/xgb done
+[explain] max |p_refit - p_saved| = 0.00e+00
+.venv/bin/python -m scf_distress.explain  79.46s user 55.87s system 405% cpu 33.411 total

@@ -2,6 +2,7 @@
 
     python -m scf_distress.pipeline --config config.yaml --build   # Fed variables from raw data (+ check)
     python -m scf_distress.pipeline --config config.yaml --run     # audit tables, tuning, locked 2025 test
+    python -m scf_distress.pipeline --config config.yaml --explain --figures   # interpretation + figures
 
 Design (see config.yaml): each model is fit separately on each of the 5
 implicates. Hyperparameters are chosen by mean validation log loss over the
@@ -234,16 +235,24 @@ def main(argv=None):
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--build", action="store_true", help="build Fed summary variables from raw data")
     ap.add_argument("--run", action="store_true", help="audit, tune, and run the locked test")
+    ap.add_argument("--explain", action="store_true", help="importance, SHAP, subgroups, BNPL sensitivity (2025)")
+    ap.add_argument("--figures", action="store_true", help="render figures from saved results")
     ap.add_argument("--jobs", type=int, default=6)
     a = ap.parse_args(argv)
     cfg_path = Path(a.config) if Path(a.config).is_absolute() else ROOT / a.config
     cfg = load_config(cfg_path)
-    if not (a.build or a.run):
-        ap.error("choose --build and/or --run")
+    if not (a.build or a.run or a.explain or a.figures):
+        ap.error("choose at least one of --build, --run, --explain, --figures")
     if a.build:
         cmd_build(cfg)
     if a.run:
         cmd_run(cfg, cfg_path, a.jobs)
+    if a.explain:
+        from . import explain
+        explain.run_all(cfg)
+    if a.figures:
+        from . import figures
+        figures.make_all()
 
 
 if __name__ == "__main__":
