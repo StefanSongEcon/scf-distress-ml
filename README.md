@@ -7,6 +7,8 @@ Retrospective classification of household delinquency in the Survey of Consumer 
 
 This is **not** prospective default forecasting and **not** causal inference. See `docs/proposal.md`.
 
+**Full combined report (classification + prediction): [`docs/scf_delinquency_report.md`](docs/scf_delinquency_report.md).**
+
 ## Design (current)
 
 | Role | Waves |
