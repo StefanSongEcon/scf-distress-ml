@@ -1,0 +1,40 @@
+# SCF delinquency classification — run configuration.
+# Freeze this file (and record its hash) before the 2025 wave is scored.
+
+seed: 20261108
+
+data:
+  source: full_public        # full public SCF datasets (raw X-variables), not the summary extract
+  raw_dir: data/raw          # one subfolder per wave: data/raw/<year>/
+  processed_dir: data/processed
+  waves: [2010, 2013, 2016, 2019, 2025]   # 2022 deliberately excluded from all roles
+  dollar_base_year: 2025     # all dollar amounts converted to 2025 dollars (CPI-U-RS, as in Fed macro)
+  n_implicates: 5
+
+outcomes: [LATE, LATE60]     # LATE = (X3004 == 5); LATE60 = (X3005 == 1)
+
+populations:
+  A_all:          {description: "All families"}
+  B_indebted:     {description: "Families with debt at interview (HDEBT == 1)"}
+  B2_payments_due: {description: "Families with loan payments due in past year (X3004 answered); robustness only"}
+
+splits:
+  # Hyperparameter tuning: forward-chaining folds inside the training waves only.
+  tuning_folds:
+    - {train: [2010, 2013], validate: 2016}
+    - {train: [2010, 2013, 2016], validate: 2019}
+  final_train: [2010, 2013, 2016, 2019]
+  test: 2025                 # locked; scored once after specifications are frozen
+
+weights:
+  column: WGT                # X42001 / 5, per the Fed macro
+  train_scheme: equal_wave   # each training wave gets equal total weight; mean weight = 1
+  sensitivity_scheme: raw    # raw population weights
+
+feature_blocks: [M1, M2, M3, M4]   # nested; NETWORTH placed in M4 (pending confirmation)
+
+models: [constant, logit, boosting]
+
+evaluation:
+  top_k_share: 0.10          # recall / lift in top 10% of predicted risk, by survey weight
+  calibration_bins: 10

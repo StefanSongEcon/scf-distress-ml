@@ -1,0 +1,101 @@
+{
+  "retrieved": "2026-11-08",
+  "files": [
+    {
+      "year": 2010,
+      "kind": "summary_extract_csv_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scfp2010excel.zip",
+      "path": "data/external/summary_extract/2010/scfp2010excel.zip",
+      "sha256": "441c1aa62524ef7f9be4bcc110c2be5357f9f19c0e08e6bf9e7771de2b8e9397",
+      "bytes": 4032860,
+      "server_last_modified": "2026-10-09"
+    },
+    {
+      "year": 2010,
+      "kind": "full_public_stata",
+      "source": "supplied by user",
+      "path": "data/raw/p10i6.dta",
+      "sha256": "0a5d9f1267293700c0d2237e80610a78e24c6faba587483497f617c516d7de9c",
+      "bytes": 326882695,
+      "file_mtime": "2014-08-27"
+    },
+    {
+      "year": 2013,
+      "kind": "summary_extract_csv_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scfp2013excel.zip",
+      "path": "data/external/summary_extract/2013/scfp2013excel.zip",
+      "sha256": "447d259174df780ccaa190024ce3cd1a7869b8f19cae674ba836e19761c39ac6",
+      "bytes": 3602303,
+      "server_last_modified": "2026-10-09"
+    },
+    {
+      "year": 2013,
+      "kind": "full_public_stata",
+      "source": "supplied by user",
+      "path": "data/raw/p13i6.dta",
+      "sha256": "f2c249c2e4866042ed827725b9ee4c43a9927cda50de555688a88e371d940123",
+      "bytes": 309419130,
+      "file_mtime": "2022-03-08"
+    },
+    {
+      "year": 2016,
+      "kind": "summary_extract_csv_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scfp2016excel.zip",
+      "path": "data/external/summary_extract/2016/scfp2016excel.zip",
+      "sha256": "91cc1141578aad19925d698ae91c86fd395d74f5f9503af1326e45885184c628",
+      "bytes": 3941471,
+      "server_last_modified": "2026-10-09"
+    },
+    {
+      "year": 2016,
+      "kind": "full_public_stata",
+      "source": "supplied by user",
+      "path": "data/raw/p16i6.dta",
+      "sha256": "86f0aafa16efce34e7f4fbd0a1f76e94d47c6c62a018562998232dc59422cee4",
+      "bytes": 318835635,
+      "file_mtime": "2022-03-08"
+    },
+    {
+      "year": 2019,
+      "kind": "summary_extract_csv_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scfp2019excel.zip",
+      "path": "data/external/summary_extract/2019/scfp2019excel.zip",
+      "sha256": "f0df9c6212b188316a30253fa2e081131b6b60fa46f7529fbe02fa3db3b7d8b3",
+      "bytes": 3639227,
+      "server_last_modified": "2026-10-09"
+    },
+    {
+      "year": 2019,
+      "kind": "full_public_stata",
+      "source": "supplied by user",
+      "path": "data/raw/p19i6.dta",
+      "sha256": "272217d999f08ca2645a2b87f3bf1810539881459197e07a3a9b5d1189e5c3e1",
+      "bytes": 290934965,
+      "file_mtime": "2022-03-08"
+    },
+    {
+      "year": 2025,
+      "kind": "summary_extract_csv_zip",
+      "url": "https://www.federalreserve.gov/econres/files/scfp2025excel.zip",
+      "path": "data/external/summary_extract/2025/scfp2025excel.zip",
+      "sha256": "7f1600daefd9caa6fef32e74977c4aa3e362172f3c5f91ba6d122c64c805e494",
+      "bytes": 2148297,
+      "server_last_modified": "2026-10-09"
+    },
+    {
+      "year": 2025,
+      "kind": "full_public_stata",
+      "source": "supplied by user",
+      "path": "data/raw/p25i6.dta",
+      "sha256": "38926275dfb8f00ea843b80ced7a9412ad4653d39c7fab8fe24c3bdf912902ad",
+      "bytes": 221016795,
+      "file_mtime": "2026-10-05"
+    },
+    {
+      "kind": "fed_sas_macro",
+      "url": "https://www.federalreserve.gov/econres/files/bulletin.macro.txt",
+      "path": "docs/bulletin.macro.txt",
+      "sha256": "5aef2019a0bbb4f3d77909c404d52c516a706b216b0cc1b25a0cd9a7f9014f98"
+    }
+  ]
+}
