@@ -52,7 +52,7 @@ def read_extract(extract_dir: str | Path, year: int) -> pd.DataFrame:
     (e.g. 'B' for .B) become NaN."""
     df = pd.read_csv(Path(extract_dir) / str(year) / f"SCFP{year}.csv", low_memory=False)
     for c in df.columns:
-        if df[c].dtype == object:
+        if not pd.api.types.is_numeric_dtype(df[c]):
             s = df[c].astype(str).str.strip()
             df[c] = pd.to_numeric(s.where(~s.str.fullmatch(r"[A-Z_]?|nan")), errors="raise")
     return df
