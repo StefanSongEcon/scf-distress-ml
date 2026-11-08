@@ -72,6 +72,8 @@ def _preds():
 # --------------------------------------------------------------------------- 1 prevalence
 def fig_prevalence():
     d = pd.read_csv(TAB / "outcome_prevalence.csv")
+    se = pd.read_csv(TAB / "outcome_prevalence_se.csv")[["year", "population", "outcome", "ci_lo", "ci_hi"]]
+    d = d.merge(se, on=["year", "population", "outcome"])
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 2.9), sharey=True)
     for ax, pop in zip(axes, ["A_all", "B_indebted"]):
         for oc, col in (("LATE", BLUE), ("LATE60", ORANGE)):
@@ -81,7 +83,7 @@ def fig_prevalence():
             ax.plot(yrs[:-1], y[:-1], color=col, marker="o", ms=5)
             ax.plot(yrs[-2:], y[-2:], color=col, ls=(0, (2, 2)), lw=1.5)
             ax.plot(yrs[-1:], y[-1:], color=col, marker="o", ms=6, mfc="white", mew=2)
-            ax.vlines(yrs, 100 * g.rate_min_imp, 100 * g.rate_max_imp, color=col, lw=1)
+            ax.vlines(yrs, 100 * g.ci_lo, 100 * g.ci_hi, color=col, lw=1.2)
             ax.annotate("Any late payment" if oc == "LATE" else "60+ days late", (yrs[0], y[0]),
                         xytext=(0, 7), textcoords="offset points", color=INK2, fontsize=8)
         ax.set_title(POP_LABEL[pop])
@@ -90,7 +92,7 @@ def fig_prevalence():
         ax.text(2022, 1.5, "2022\nnot used", ha="center", fontsize=7, color=MUTED)
     axes[0].set_ylabel("Weighted share of families (%)")
     axes[0].set_ylim(0, 30)
-    fig.text(0.0, -0.04, "Open marker: 2025 test wave. Vertical ticks: range across the 5 implicates. "
+    fig.text(0.0, -0.04, "Open marker: 2025 test wave. Vertical ticks: 95% CI (SCF replicate weights + implicates). "
              "Past-12-month delinquency; SCF full public data.", fontsize=7, color=MUTED)
     _save(fig, "fig1_prevalence_by_year")
 
@@ -192,6 +194,7 @@ def fig_calibration(pr=None):
 def fig_incremental():
     perf = pd.read_csv(TAB / "model_performance.csv")
     t = perf[(perf.role == "locked_test")]
+    ci = pd.read_csv(TAB / "test_metrics_ci.csv")
     blocks = ["M1", "M2", "M3", "M4"]
     fig, axes = plt.subplots(3, 2, figsize=(7.2, 7.4), sharex=True)
     for c, oc in enumerate(["LATE", "LATE60"]):
@@ -201,13 +204,17 @@ def fig_incremental():
                 g = t[(t.outcome == oc) & (t.population == pop) & (t.model == mdl)].set_index("block").loc[blocks]
                 x = np.arange(4)
                 vals = [g.roc_auc_mean, g.pr_auc_mean / g.prevalence_mean, 1 - g.brier_mean / const.brier_mean]
-                los = [g.roc_auc_min, g.pr_auc_min / g.prevalence_mean, 1 - g.brier_max / const.brier_mean]
-                his = [g.roc_auc_max, g.pr_auc_max / g.prevalence_mean, 1 - g.brier_min / const.brier_mean]
+                cc = ci[(ci.outcome == oc) & (ci.population == pop) & (ci.model == mdl)]
+                ca = cc[cc.metric == "roc_auc"].set_index("block").loc[blocks]
+                cp = cc[cc.metric == "pr_auc"].set_index("block").loc[blocks]
+                los = [ca.ci_lo.to_numpy(), (cp.ci_lo / g.prevalence_mean).to_numpy(), None]
+                his = [ca.ci_hi.to_numpy(), (cp.ci_hi / g.prevalence_mean).to_numpy(), None]
                 for r in range(3):
                     ax = axes[r, c]
                     ax.plot(x, vals[r], color=col, ls=ls, marker="o", ms=5,
                             label=f"{POP_LABEL[pop]}, {MODEL_LABEL[mdl]}")
-                    ax.vlines(x, los[r], his[r], color=col, lw=1)
+                    if los[r] is not None:
+                        ax.vlines(x + (0.04 if mdl == "xgb" else -0.04), los[r], his[r], color=col, lw=1)
         axes[0, c].set_title("Any late payment" if oc == "LATE" else "60+ days late")
     axes[0, 0].set_ylabel("ROC AUC")
     axes[1, 0].set_ylabel("PR-AUC / prevalence")
@@ -215,8 +222,10 @@ def fig_incremental():
     for ax in axes[2]:
         ax.set_xticks(range(4), ["M1\nDemog.", "M2\n+Income", "M3\n+Wealth", "M4\n+Debt"])
     axes[0, 1].legend(fontsize=7, loc="lower right")
-    fig.text(0.0, -0.02, "2025 locked test. Each block adds features to the previous one. Solid: XGBoost; dashed: logit. "
-             "Ticks: range across implicates.", fontsize=7, color=MUTED)
+    fig.text(0.0, -0.04, "2025 locked test. Each block adds features to the previous one. Solid: XGBoost; dashed: logit. "
+             "Ticks: 95% CI (SCF replicate weights + implicates; models held fixed).\nIntervals for levels overlap even where "
+             "paired block differences are significant (tables/test_differences_ci.csv). No intervals for Brier skill.",
+             fontsize=7, color=MUTED)
     fig.tight_layout()
     _save(fig, "fig4_incremental_blocks_2025")
 

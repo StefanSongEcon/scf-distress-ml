@@ -13,18 +13,26 @@ trained on the 2010–2019 SCF waves and tested once on the 2025 wave.
 
 - **Financial information carries most of the signal.** On the locked 2025 test (all families), ROC AUC rises
   from 0.69 with demographics only (M1) to 0.72–0.74 with income (M2), 0.78–0.79 with wealth and liquidity (M3),
-  and 0.86–0.87 with debt and housing (M4). PR-AUC rises from 0.33 to 0.57 for any late payment (prevalence 0.196)
-  and from 0.17 to 0.36 for 60+ days late (prevalence 0.082).
+  and 0.86–0.87 with debt and housing (M4; XGBoost 0.863, 95% CI 0.851–0.874 for any late payment and 0.867,
+  0.848–0.885 for 60+ days late). PR-AUC rises from 0.33 to 0.57 for any late payment (prevalence 0.196) and from
+  0.17 to 0.36 for 60+ days late (prevalence 0.082). Every block's gain in AUC is statistically significant.
 - **Among indebted families, the debt block adds little beyond liquidity and wealth.** M3 → M4 adds about
-  0.02 AUC for borrowers versus 0.07–0.08 for all families. Much of M4's gain in the full population comes from
-  the mechanical fact that families without loan payments cannot be late.
+  0.02 AUC for borrowers (e.g. +0.016, 95% CI 0.008–0.025, for any late payment with XGBoost) versus 0.07–0.08
+  for all families. Much of M4's gain in the full population comes from the mechanical fact that families
+  without loan payments cannot be late.
 - **Liquid assets are the single most informative variable** in almost every model; debt-to-assets and the
   unsecured share of debt follow.
-- **Logit and XGBoost perform almost identically** (differences ≤ 0.02 AUC), so nonlinearity adds little once
-  heavy-tailed variables are transformed.
+- **Logit and XGBoost perform almost identically.** At M4 their difference is at most 0.01 AUC and not
+  statistically significant in any setting; XGBoost is ahead by a small but significant 0.006–0.018 AUC only in
+  some reduced models (M2/M3 for all families, M2 for any late payment among borrowers).
 - **Ranking transports to 2025; levels do not.** Delinquency fell steadily from 2010 to 2019 and then jumped in
-  2025 (any late: 12.3% → 19.6%). Models trained on 2010–2019 rank 2025 families well but under-predict their
-  level (calibration-in-the-large +0.36 to +0.71 on the log-odds scale).
+  2025 (any late: 12.3% → 19.6%, about 10 standard errors). Models trained on 2010–2019 rank 2025 families well
+  but under-predict their level (calibration-in-the-large +0.36 to +0.71 on the log-odds scale, every 95% CI
+  above zero).
+
+Uncertainty: standard errors use the SCF replicate weights and the five implicates (Fed codebook method). For
+model metrics they cover sampling and imputation uncertainty of the 2025 evaluation with the fitted models held
+fixed; they do not include variability from re-drawing the 2010–2019 training data.
 
 ## 2. Data and provenance
 
@@ -33,6 +41,7 @@ trained on the 2010–2019 SCF waves and tested once on the 2025 wave.
 | Microdata | SCF **full public datasets** `p10i6.dta`, `p13i6.dta`, `p16i6.dta`, `p19i6.dta`, `p25i6.dta` (supplied by the user; checksums in `data/PROVENANCE.json`) |
 | Variable definitions | Federal Reserve `bulletin.macro.txt` (SAS), run in Python by `sasport.py` |
 | Check only | Fed summary extracts `scfp<year>excel.zip` (downloaded 8 Nov 2026; server date 9 Oct 2026) |
+| Standard errors | Fed replicate-weight files `scf<year>rw1s.zip` (999 replicates, implicate 1; downloaded 8 Nov 2026). Replicate totals equal the main-weight household totals in every wave |
 
 The Fed macro was translated mechanically: the year branches are resolved for the public data and the SAS
 DATA step is executed vectorized, with SAS missing-value and comparison semantics. **For all five waves, all
@@ -73,8 +82,9 @@ B2 matches the outcome's routing instead. Each covers 74–77% of families (weig
 | 2019 | 5,777 | 28,885 | 128.6 | 12.3% | 4.6% | 15.7% | 6.0% |
 | 2025 | 4,360 | 21,800 | 135.0 | **19.6%** | **8.2%** | **25.3%** | **10.7%** |
 
-Survey-weighted means over implicates (ranges across implicates are within ±0.4 percentage points;
-`tables/outcome_prevalence.csv`). Every family has exactly five implicates. `WGT = X42001/5` sums to about
+Survey-weighted means over implicates (`tables/outcome_prevalence.csv`). Standard errors are 0.2–0.7
+percentage points, mostly from sampling (`tables/outcome_prevalence_se.csv`). The 2019 → 2025 rise in
+any late payment among all families (12.3% ± 0.41 → 19.6% ± 0.59, SEs) is about 10 standard errors. Every family has exactly five implicates. `WGT = X42001/5` sums to about
 one-fifth of US households per implicate. Delinquency events per implicate in 2025: 780 (LATE) and 328 (LATE60).
 
 ![Prevalence](figures/fig1_prevalence_by_year.png)
@@ -139,8 +149,19 @@ and −9, negative income cannot be kept as a signed amount; it enters as a flag
 (prevalence 0.253); LATE60 AUC 0.816 / 0.826, PR-AUC 0.351 / 0.357 (prevalence 0.107).
 
 Top-10% recall has a ceiling of 0.51 for LATE (10% / 19.6%), so M4's 0.32 captures about 63% of what a perfect
-ranking could. AUC varies by about ±0.005 across implicates (±0.01 for LATE60 in Sample B). Full table:
-`tables/model_performance.csv`; per implicate: `tables/test_by_implicate.csv`.
+ranking could.
+
+**95% confidence intervals (replicate weights + implicates), 2025:**
+
+| Outcome | Sample | M1 logit AUC | M4 logit AUC | M4 XGBoost AUC | M4 XGBoost PR-AUC |
+|---|---|---|---|---|---|
+| LATE | All | 0.690 (0.670–0.709) | 0.858 (0.846–0.869) | 0.863 (0.851–0.874) | 0.572 (0.537–0.606) |
+| LATE | Indebted | 0.691 (0.670–0.711) | 0.809 (0.793–0.825) | 0.811 (0.796–0.826) | 0.570 (0.535–0.605) |
+| LATE60 | All | 0.686 (0.657–0.715) | 0.862 (0.843–0.882) | 0.867 (0.848–0.885) | 0.359 (0.310–0.408) |
+| LATE60 | Indebted | 0.690 (0.657–0.722) | 0.816 (0.790–0.843) | 0.826 (0.805–0.848) | 0.357 (0.308–0.405) |
+
+AUC standard errors are 0.006–0.016, mostly sampling. Full tables: `tables/model_performance.csv`,
+`tables/test_metrics_ci.csv`; per implicate: `tables/test_by_implicate.csv`.
 
 ![ROC and PR](figures/fig2_roc_pr_2025.png)
 
@@ -154,13 +175,19 @@ ranking could. AUC varies by about ±0.005 across implicates (±0.01 for LATE60 
   by only about 0.02 and PR-AUC by 0.03–0.04. Block-permutation importance (below) agrees: for Sample B logit
   models, permuting M3 features costs 0.13–0.16 AUC versus 0.06–0.07 for M4-only features.
 - Income alone (M2) adds 0.03–0.06 AUC over demographics.
+- **Significance (paired, same replicate weights for both models; `tables/test_differences_ci.csv`).** Every
+  step M1→M2, M2→M3, M3→M4 improves AUC and Brier score significantly in both samples and both outcomes, with
+  one partial exception: for 60+ days late among borrowers, M3→M4 improves AUC significantly (+0.021 logit,
+  +0.023 XGBoost), but the PR-AUC gain (+0.03) and, for the logit, the Brier gain have 95% CIs that include zero. Confidence intervals for the
+  levels in the figure overlap more than these paired comparisons suggest, because both models are scored on
+  the same families.
 
 ## 9. Calibration and the 2025 shift
 
 ![Calibration](figures/fig3_calibration_2025.png)
 
 Every model under-predicts 2025 delinquency: calibration-in-the-large (CITL) is +0.36 to +0.71 on the log-odds
-scale, and in the riskiest decile observed rates are about 63% (LATE) versus 44% predicted. In the backtests
+scale (e.g. M4 XGBoost, any late: +0.67, 95% CI 0.60–0.75; every interval excludes zero), and in the riskiest decile observed rates are about 63% (LATE) versus 44% predicted. In the backtests
 the sign was reversed (CITL −0.05 to −0.40, over-prediction), because delinquency was falling through 2019.
 Survey year is deliberately not a predictor, so a model trained on 2010–2019 cannot anticipate the reversal.
 Calibration slopes are 0.96–1.27 (predicted risks somewhat too compressed for LATE). **Predicted probabilities
@@ -218,7 +245,7 @@ individually. `figures/fig7_response_late60_2025.png` shows the same for LATE60.
 | Backtests (validation waves 2016, 2019; selected hyperparameters, so mildly optimistic) | Same block ordering; M4 AUC 0.81–0.82 (LATE) and 0.86 (LATE60) in Sample A |
 | Payments-due sample B2 instead of HDEBT | M4 AUC 0.804 / 0.808 (LATE), 0.820 / 0.829 (LATE60), close to Sample B |
 | Remove BNPL from 2025 debt and payment totals (models unchanged) | AUC changes by +0.001 to +0.004; CITL unchanged in sign and size. BNPL is not behind the higher 2025 AUC |
-| Logit vs XGBoost | ≤ 0.02 AUC apart everywhere |
+| Logit vs XGBoost | ≤ 0.02 AUC apart everywhere; at M4 no difference is significant (largest: +0.010 AUC, 95% CI −0.006 to +0.026, LATE60 borrowers) |
 
 BNPL context: 12.5% of 2025 families (weighted) report a BNPL balance; 42.5% of them had a late payment,
 versus 16.7% of other families. BNPL is a strong correlate of delinquency in 2025, but it cannot be used in
@@ -235,9 +262,11 @@ earlier cross-sections transport to a new cross-section; it does not follow the 
 
 ## 14. Caveats, gaps and failures
 
-- **Uncertainty.** Ranges across implicates are reported, but **no design-based confidence intervals** yet:
-  the SCF replicate-weight files have not been downloaded. Implicate ranges capture imputation variability only,
-  not sampling variability, so differences of about 0.01 AUC between models should not be treated as significant.
+- **Uncertainty.** Design-based standard errors (replicate weights + implicates) cover prevalence and all 2025
+  test metrics and paired model differences. For model metrics they hold the fitted models fixed, so they
+  measure uncertainty in the 2025 evaluation, not variability from the training sample; true uncertainty about
+  model performance is somewhat larger. Validation (backtest) metrics have no intervals. Subgroup results
+  report implicate ranges only.
 - **Not run yet** (from the proposal): the raw-population-weight sensitivity (`weights.sensitivity_scheme: raw`
   is configured but unused), the modern-waves-only robustness (train 2016/2019 → test 2025), post-hoc
   recalibration fitted on historical held-out data, and the expanded model with behavioural variables (`SAVED`,
@@ -259,7 +288,7 @@ earlier cross-sections transport to a new cross-section; it does not follow the 
 ```bash
 python3 -m venv .venv && .venv/bin/python -m pip install -e '.[ml,explain,dev]' pyarrow
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --build
-.venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --figures
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures
 .venv/bin/python -m pytest -q
 ```
 
