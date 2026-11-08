@@ -4,7 +4,7 @@ Retrospective classification of past-12-month delinquency (`LATE`, `LATE60`) fro
 trained on the 2010–2019 SCF waves and tested once on the 2025 wave.
 
 *All numbers below are computed from the full public SCF files by the code in this repository
-(`src/scf_distress/`). Run: 8 Nov 2026; config SHA-256 `43da9ac3…`; spec frozen in commit `0284034` before the
+(`src/scf_distress/`). Run: 8 Nov 2026; config SHA-256 `43da9ac3…`; spec frozen in commit `0dc5cec` before the
 2025 wave was scored.*
 
 ---
