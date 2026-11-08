@@ -238,12 +238,13 @@ def main(argv=None):
     ap.add_argument("--explain", action="store_true", help="importance, SHAP, subgroups, BNPL sensitivity (2025)")
     ap.add_argument("--variance", action="store_true", help="replicate-weight SEs for prevalence and 2025 metrics")
     ap.add_argument("--figures", action="store_true", help="render figures from saved results")
+    ap.add_argument("--panel", action="store_true", help="2007-2009 panel: prospective models, CIs, importance")
     ap.add_argument("--jobs", type=int, default=6)
     a = ap.parse_args(argv)
     cfg_path = Path(a.config) if Path(a.config).is_absolute() else ROOT / a.config
     cfg = load_config(cfg_path)
-    if not (a.build or a.run or a.explain or a.variance or a.figures):
-        ap.error("choose at least one of --build, --run, --explain, --variance, --figures")
+    if not (a.build or a.run or a.explain or a.variance or a.figures or a.panel):
+        ap.error("choose at least one of --build, --run, --explain, --variance, --figures, --panel")
     if a.build:
         cmd_build(cfg)
     if a.run:
@@ -257,6 +258,10 @@ def main(argv=None):
     if a.figures:
         from . import figures
         figures.make_all()
+    if a.panel:
+        from . import panel_analysis, panel_model
+        panel_model.run_all(a.jobs)
+        panel_analysis.run_all(a.jobs)
 
 
 if __name__ == "__main__":

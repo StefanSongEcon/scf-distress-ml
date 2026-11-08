@@ -7,7 +7,8 @@ released 2025 survey?
 **Answer in brief.** Balance-sheet information, above all liquid assets, raises out-of-sample ROC AUC from 0.69
 (demographics only) to 0.86. A regularized logit is as good as gradient boosting. Models trained on earlier
 waves *rank* 2025 households well but under-predict the 2025 *level*, because delinquency jumped from 12% to
-20% after a decade of decline.
+20% after a decade of decline. On the 2007–2009 panel, 2007 balance sheets predict 2009 delinquency two years
+ahead (AUC 0.78 with past delinquency), though less sharply than same-year data (0.84).
 
 ```mermaid
 flowchart LR
@@ -133,23 +134,59 @@ of those 60+ days late (lift 4.2).
 
 ![Feature importance](../results/figures/fig5b_feature_importance_2025.png)
 
-## 7. Limitations
+## 7. Extension: predicting two years ahead (SCF 2007–2009 panel)
 
-- **Retrospective, not predictive:** delinquency refers to the 12 months before the interview, while the balance
-  sheet is measured at the interview, so low liquidity may partly be a consequence of the same hardship.
-  (Planned extension: the SCF 2007–2009 panel, predicting 2009 delinquency from 2007 balance sheets.)
+The cross-sectional models classify *recent* delinquency from a balance sheet measured at the same interview.
+To test genuine prediction, the same pipeline was applied to the Fed's 2007–2009 panel: 3,857 families
+interviewed in 2007 and again in 2009, predicting 2009 delinquency (the financial-crisis year) from **2007**
+information only.
+
+- **Data:** the Fed's panel macro, run with the same SAS interpreter; 173/188 (2007) and 181/188 (2009) variables
+  match the Fed panel extract exactly, and every difference is explained (one family revised in a later data
+  release; one extract variable left in nominal dollars).
+- **Validation:** one panel and no later wave, so family-grouped 5-fold cross-validation with nested tuning; the
+  same folds for every implicate, feature set and model, giving paired comparisons; replicate-weight CIs.
+
+| Information used (all families) | Any late, AUC | 60+ days late, AUC |
+|---|---|---|
+| 2007 demographics | 0.691 (0.674–0.708) | 0.716 (0.688–0.744) |
+| 2007 balance sheet | 0.756 (0.741–0.772) | 0.780 (0.757–0.804) |
+| 2007 delinquency only | 0.626 (0.601–0.652) | 0.618 (0.579–0.657) |
+| 2007 balance sheet + 2007 delinquency | **0.783** (0.766–0.800) | **0.795** (0.770–0.820) |
+| 2009 balance sheet (same-year benchmark) | 0.839 (0.825–0.853) | 0.875 (0.858–0.892) |
+
+![Prospective AUC](../results/panel/figures/figP1_prospective_auc.png)
+
+- **Balance sheets are forward-looking.** 2007 finances predict 2009 delinquency well beyond demographics
+  (+0.065 AUC), including *new* delinquency among families that were current in 2007 (AUC 0.76–0.79).
+- **Prediction is harder than classification.** Two-years-ahead information loses 0.08–0.10 AUC relative to the
+  same-year balance sheet, so part of the cross-sectional accuracy is contemporaneous.
+- **Past delinquency is informative but not sufficient.** Families late in 2007 were 3.5 times as likely to be late
+  in 2009, yet 2007 delinquency alone reaches only AUC 0.62–0.63; it adds 0.01–0.03 AUC to the balance sheet.
+- **Same model lessons:** logit and XGBoost do not differ significantly; predictions are well calibrated within
+  the period.
+
+Full details: [`results/panel/report.md`](../results/panel/report.md).
+
+## 8. Limitations
+
+- **Cross-section is retrospective:** in the main analysis, delinquency refers to the 12 months before the
+  interview while the balance sheet is measured at the interview, so low liquidity may partly be a consequence of
+  the same hardship. The panel extension (§7) addresses this for 2007–2009 but covers a single crisis period.
 - **Associations, not causal effects:** importance measures and SHAP values describe the model, not interventions.
 - **Uncertainty:** confidence intervals cover the 2025 evaluation with fitted models held fixed, not variability
   from the training sample.
 
-## 8. Stack and reproduction
+## 9. Stack and reproduction
 
 Python 3.12, pandas, NumPy, scikit-learn, XGBoost, matplotlib, pytest. The full pipeline (data build, tuning,
-locked test, interpretation, confidence intervals, figures) runs in about three minutes on a laptop.
+locked test, interpretation, confidence intervals, figures) runs in about three minutes on a laptop; the panel
+extension in about four more.
 
 ```bash
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --build
 .venv/bin/python -m scf_distress.pipeline --config config.yaml --run --explain --variance --figures
+.venv/bin/python -m scf_distress.pipeline --config config.yaml --panel
 .venv/bin/python -m pytest -q
 ```
 

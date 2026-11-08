@@ -1,0 +1,2410 @@
+
+* this macro is designed to be used with the 2007-09 Panel SCF;
+
+OPTIONS MPRINT;
+OPTIONS SOURCE SOURCE2;
+OPTIONS LINESIZE=78;
+OPTIONS COMPRESS=YES;
+OPTIONS SPOOL;
+
+LIBNAME IN 'directory where SCF data sets are stored';
+LIBNAME WORKINGR 'directory for real dollar output data sets';
+LIBNAME WORKINGN 'directory for nominal dollar output data sets';
+
+* IMPORTANT NOTE: This program assumes the SCF dataset stored in
+  the IN library is named P09PI6.  If you wish to use a different
+  naming convention, you will need to change the ELSE %LET SCFDS=
+  statements in the section of the program where the CPI adjustments are done.;
+
+***************************************************************************;
+***************************************************************************;
+* UTILITY MACROs HERE;
+***************************************************************************;
+
+* MACRO MCONV converts payments to MONTHLY basis;
+* NOTE: this macro does not convert HOURLY (code 18) or DAILY (code 1);
+
+  %MACRO MCONV(F);
+    ( (&F=2)*52/12+(&F=3)*26/12+(&F=4)+(&F=5)/3+(&F=6)/12+(&F=11)/6+
+    (&F=12)/2+(&F=31)*2+(&F=23)*13/12+(&F=24)*52/(6*12) )
+  %MEND MCONV;
+
+***************************************************************************;
+***************************************************************************;
+* MAIN MACRO HERE;
+***************************************************************************;
+
+* MACRO BULLIT:
+  YEAR: SCF survey year
+  REAL: set=YES (default) to compute dollar variables in real terms
+  ADJINC: set=YES (default) to adjust lagged income to survey year dollars
+  CPIBASE: give value of CPI-U-RS (times 100) for the period selected
+  as the reference period for real dollars
+  PUBLIC: set equal to NO (default) for work with an internal SCF
+  dataset, set equal to YES for work with a disclosure-limited dataset;
+
+%GLOBAL YEAR ID IID;
+%MACRO BULLIT(YEAR=,REAL=YES,CPIBASE=,PUBLIC=NO,ADJINC=YES);
+
+***************************************************************************;
+***************************************************************************;
+  %IF (&REAL EQ YES AND &ADJINC NE YES) %THEN %PUT WARNING! REAL=YES,
+    BUT ADJINC^=YES!;
+***************************************************************************;
+***************************************************************************;
+
+%*set CPI-U-RS factors for inflation adjustments and identify input
+  datasets for various survey years;
+%*CPI-U-RS is the current-methods version of the Consumer Price Index
+  for all urban consumers;
+%*for income, set CPILAG equal to the annual average of CPI-U-RS * 100
+  for the year of the survey divided by that for the year preceding
+  the survey;
+%*for all other values, set CPICUR equal to CPIBASE divided by the
+  value of CPI-U-RS * 100 for the September of the survey year;
+%*NOTE: CPIBASE should be the index value for the base period
+  (typically September for one of the survey years);
+%* see http://www.bls.gov/cpi/cpiurs1978_2007.pdf
+   NOTE: the file at the above link includes revised values of earlier
+    estimates (accounting for a new method of imputing price change from
+    rental vacancies);
+
+%*set name of final input dataset;
+  %IF (&YEAR=1989) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/1902;
+    %LET CPILAG=1886/1808;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCFR6;
+    %ELSE %LET SCFDS=P89I6;
+  %END;
+  %ELSE %IF (&YEAR=1992) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/2116;
+    %LET CPILAG=2103/2051;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF92I4;
+    %ELSE %LET SCFDS=P92I4;
+  %END;
+  %ELSE %IF (&YEAR=1995) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/2265;
+    %LET CPILAG=2254/2201;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF95I6;
+    %ELSE %LET SCFDS=P95I6;
+  %END;
+  %ELSE %IF (&YEAR=1998) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/2405;
+    %LET CPILAG=2397/2364;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF98I6;
+    %ELSE %LET SCFDS=P98I6;
+  %END;
+  %ELSE %IF (&YEAR=2001) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/2618;
+    %LET CPILAG=2600/2529;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF01I6;
+    %ELSE %LET SCFDS=P01I6;
+  %END;
+  %ELSE %IF (&YEAR=2004) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/2788;
+    %LET CPILAG=2774/2701;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF04I6;
+    %ELSE %LET SCFDS=P04I6;
+  %END;
+  %ELSE %IF (&YEAR=2007) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/3062;
+    %LET CPILAG=3045/2961;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=scf09pp6 ; 
+    %ELSE %LET SCFDS=p09pi6 ;
+  %END;
+  %ELSE %IF (&YEAR=2009) %THEN %DO;
+    %LET CPIADJ=&CPIBASE/3171;
+    %LET CPILAG=3150/3162;
+    %IF (&PUBLIC NE YES) %THEN %LET SCFDS=scf09pp6 ; 
+    %ELSE %LET SCFDS=p09pi6 ;
+  %END;
+run;
+***************************************************************************;
+***************************************************************************;
+* set names of the ID variables;
+  %IF (&PUBLIC NE YES OR &YEAR EQ 1989) %THEN %DO;
+    %LET ID=Y1;
+    %LET IID=YY1;
+  %END;
+  %ELSE %DO;
+    %LET ID=Y1;
+    %LET IID=YY1;
+  %END;
+  %IF (&PUBLIC NE YES OR &YEAR EQ 1989) %THEN %DO;
+    %LET PID=Y1;
+    %LET PIID=YY1;
+  %END;
+  %ELSE %DO;
+    %LET PID=Y1;
+    %LET PIID=YY1;
+  %END;
+***************************************************************************;
+***************************************************************************;
+* set variables for panel variales;
+%IF (&YEAR=2009) %THEN %DO;
+   %LET V091001=P091001;
+   %LET V091003=P091003;
+   %LET V091004=P091004;
+   %LET V091005=P091005;
+   %LET V091007=P091007;
+   %LET V091008=P091008;
+   %LET V091009=P091009;
+   %LET V091010=P091010;
+   %LET V091011=P091011;
+   %LET V091012=P091012;
+   %LET V091013=P091013;
+   %LET V091014=P091014;
+   %LET V091015=P091015;
+   %LET V091016=P091016;
+   %LET V091017=P091017;
+   %LET V091018=P091018;
+   %LET V091021=P091021;
+   %LET V091027=P091027;
+   %LET V091107=P091107;
+   %LET V091108=P091108;
+   %LET V091111=P091111;
+   %LET V091113=P091113;
+   %LET V091112=P091112;
+   %LET V091115=P091115;
+   %LET V091116=P091116;
+   %LET V091117=P091117;
+   %LET V091124=P091124;
+   %LET V091126=P091126;
+   %LET V091127=P091127;
+   %LET V091128=P091128;
+   %LET V091129=P091129;
+   %LET V091131=P091131;
+   %LET V091132=P091132;
+   %LET V091159=P091159;
+   %LET V091707=P091707;
+   %LET V091708=P091708;
+   %LET V091711=P091711;
+   %LET V091712=P091712;
+   %LET V091713=P091713;
+   %LET V091715=P091715;
+   %LET V091716=P091716;
+   %LET V091717=P091717;
+   %LET V091759=P091759;
+   %LET V09201=P09201;
+   %LET V09202=P09202;
+   %LET V408=P408;
+   %LET V09203=P09203;
+   %LET V09206=P09206;
+   %LET V09340=P09340;
+   %LET V09342=P09342;
+   %LET V09344=P09344;
+   %LET V09345=P09345;
+   %LET V09346=P09346;
+   %LET V09352=P09352;
+   %LET V09353=P09353;
+   %LET V09354=P09354;
+   %LET V09401=P09401;
+   %LET V09405=P09405;
+   %LET V09408=P09408;
+   %LET V09409=P09409;
+   %LET V09410=P09410;
+   %LET V09414=P09414;
+   %LET V09415=P09415;
+   %LET V09416=P09416;
+   %LET V09417=P09417;
+   %LET V09512=P09512;
+   %LET V09513=P09513;
+   %LET V09516=P09516;
+   %LET V09518=P09518;
+   %LET V09519=P09519;
+   %LET V09521=P09521;
+   %LET V09528=P09528;
+   %LET V09603=P09603;
+   %LET V09605=P09605;
+   %LET V09606=P09606;
+   %LET V09607=P09607;
+   %LET V09608=P09608;
+   %LET V09610=P09610;
+   %LET V09611=P09611;
+   %LET V09612=P09612;
+   %LET V09702=P09702;
+   %LET V09703=P09703;
+   %LET V09704=P09704;
+   %LET V09801=P09801;
+   %LET V09802=P09802;
+   %LET V09803=P09803;
+   %LET V09804=P09804;
+   %LET V1039=P1039;
+   %LET V1044=P1044;
+   %LET V108 =P108;
+   %LET V114 =P114;
+   %LET V120 =P120;
+   %LET V126 =P126;
+   %LET V132 =P132;
+   %LET V14=P14;
+   %LET V202 =P202;
+   %LET V208 =P208;
+   %LET V2101=P2101;
+   %LET V2102=P2102;
+   %LET V214 =P214;
+   %LET V220=P220;
+   %LET V220 =P220;
+   %LET V2201=P2201;
+   %LET V2202=P2202;
+   %LET V226=P226;
+   %LET V2501=P2501;
+   %LET V2502=P2502;
+   %LET V3005=P3005;
+   %LET V3006=P3006;
+   %LET V3014=P3014;
+   %LET V3103=P3103;
+   %LET V33001=P33001;
+   %LET V3401=P3401;
+   %LET V3501=P3501;
+   %LET V372=P372;
+   %LET V3721=P3721;
+   %LET V3727=P3727;
+   %LET V3902=P3902;
+   %LET V3914=P3914;
+   %LET V3915=P3915;
+   %LET V3923=P3923;
+   %LET V3928=P3928;
+   %LET V3929=P3929;
+   %LET V3930=P3930;
+   %LET V3932=P3932;
+   %LET V4006=P4006;
+   %LET V4010=P4010;
+   %LET V4011=P4011;
+   %LET V4012=P4012;
+   %LET V4018=P4018;
+   %LET V4020=P4020;
+   %LET V4022=P4022;
+   %LET V4024=P4024;
+   %LET V4026=P4026;
+   %LET V4028=P4028;
+   %LET V4030=P4030;
+   %LET V4032=P4032;
+   %LET V4100=P4100;
+   %LET V4106=P4106;
+   %LET V4135=P4135;
+   %LET V4735=P4735;
+   %LET V507=P507;
+   %LET V508=P508;
+   %LET V513=P513;
+   %LET V526=P526;
+   %LET V5702=P5702;
+   %LET V5704=P5704;
+   %LET V5706=P5706;
+   %LET V5708=P5708;
+   %LET V5710=P5710;
+   %LET V5712=P5712;
+   %LET V5714=P5714;
+   %LET V5716=P5716;
+   %LET V5718=P5718;
+   %LET V5720=P5720;
+   %LET V5722=P5722;
+   %LET V5724=P5724;
+   %LET V5729=P5729;
+   %LET V5901=P5901;
+   %LET V5902=P5902;
+   %LET V5904=P5904;
+   %LET V601=P601;
+   %LET V604=P604;
+   %LET V614=P614;
+   %LET V623=P623;
+   %LET V6577=P6577;
+   %LET V6581=P6581;
+   %LET V6582=P6582;
+   %LET V6587=P6587;
+   %LET V6591=P6591;
+   %LET V6592=P6592;
+   %LET V6789=P6789;
+   %LET V6849=P6849;
+   %LET V6861=P6861;
+   %LET V6862=P6862;
+   %LET V6863=P6863;
+   %LET V6864=P6864;
+   %LET V6865=P6865;
+   %LET V6866=P6866;
+   %LET V6867=P6867;
+   %LET V6868=P6868;
+   %LET V6869=P6869;
+   %LET V701=P701;
+   %LET V7100=P7100;
+   %LET V7101=P7101;
+   %LET V7102=P7102;
+   %LET V7103=P7103;
+   %LET V7104=P7104;
+   %LET V7105=P7105;
+   %LET V7106=P7106;
+   %LET V7107=P7107;
+   %LET V7108=P7108;
+   %LET V7109=P7109;
+   %LET V7110=P7110;
+   %LET V7111=P7111;
+   %LET V7112=P7112;
+   %LET V7113=P7113;
+   %LET V7114=P7114;
+   %LET V7115=P7115;
+   %LET V7116=P7116;
+   %LET V7117=P7117;
+   %LET V7118=P7118;
+   %LET V7119=P7119;
+   %LET V7120=P7120;
+   %LET V7121=P7121;
+   %LET V7133=P7133;
+   %LET V716=P716;
+   %LET V7193=P7193;
+   %LET V720=P720;
+   %LET V7362=P7362;
+   %LET V7401=P7401;
+   %LET V7402=P7402;
+   %LET V7508=P7508;
+   %LET V7509=P7509;
+   %LET V7510=P7510;
+   %LET V7567=P7567;
+   %LET V7575=P7575;
+   %LET V7650=P7650;
+   %LET V802=P802;
+   %LET V8023=P8023;
+   %LET V805=P805;
+   %LET V808=P808;
+   %LET V809=P809;
+   %LET V813=P813;
+   %LET V814=P814;
+   %LET V905=P905;
+   %LET V908=P908;
+   %LET V909=P909;
+   %LET V913=P913;
+   %LET V914=P914;
+   %LET V7570=P7570;
+   %LET V7571=P7571;
+   %LET V820=P820;
+   %LET V920=P920;
+   %LET V7187=P7187;
+   %LET V3104=P3104;
+   %LET V6780=P6780;
+   %LET V6784=P6784;
+   %LET V4106=P4106;
+   %LET V4511=P4511;
+   %LET V4524=P4524;
+   %LET V4525=P4525;
+   %LET V4526=P4526;
+   %LET V4543=P4543;
+   %LET V4544=P4544;
+   %LET V4700=P4700;
+   %LET V6780=P6780;
+   %LET V6784=P6784;
+   %LET V7248=P7248;
+   %LET V7248=P7248;
+   %LET V7700=P7700;
+   %LET V7700=P7700;
+   %LET V7701=P7701;
+   %LET V7702=P7702;
+   %LET V7703=P7703;
+   %LET V7704=P7704;
+   %LET V7728=P7728;
+   %LET V723=P723;
+   %LET V724=P724;
+   %LET V726=P726;
+   %LET V09305=P09305;
+   %LET V6030=P6030;
+   %LET V6124=P6124;
+   
+%END;
+%ELSE %IF (&YEAR=2007) %THEN %DO;
+   %LET V091001=X091001;
+   %LET V091003=X091003;
+   %LET V091004=X091004;
+   %LET V091005=X091005;
+   %LET V091007=X091007;
+   %LET V091008=X091008;
+   %LET V091009=X091009;
+   %LET V091010=X091010;
+   %LET V091011=X091011;
+   %LET V091012=X091012;
+   %LET V091013=X091013;
+   %LET V091014=X091014;
+   %LET V091015=X091015;
+   %LET V091016=X091016;
+   %LET V091017=X091017;
+   %LET V091018=X091018;
+   %LET V091021=X091021;
+   %LET V091027=X091027;
+   %LET V091107=X091107;
+   %LET V091108=X091108;
+   %LET V091111=X091111;
+   %LET V091112=X091112;
+   %LET V091113=X091113;
+   %LET V091115=X091115;
+   %LET V091116=X091116;
+   %LET V091117=X091117;
+   %LET V091124=X091124;
+   %LET V091126=X091126;
+   %LET V091127=X091127;
+   %LET V091128=X091128;
+   %LET V091129=X091129;
+   %LET V091131=X091131;
+   %LET V091132=X091132;
+   %LET V091159=X091159;
+   %LET V091707=X091707;
+   %LET V091708=X091708;
+   %LET V091711=X091711;
+   %LET V091712=X091712;
+   %LET V091713=X091713;
+   %LET V091715=X091715;
+   %LET V091716=X091716;
+   %LET V091717=X091717;
+   %LET V091759=X091759;
+   %LET V09201=X7131;
+   %LET V09202=X407;
+   %LET V408=X408;
+   %LET V09203=X409;
+   %LET V09206=X09206;
+   %LET V09340=X09340;
+   %LET V09342=X09342;
+   %LET V09344=X09344;
+   %LET V09345=X09345;
+   %LET V09346=X09346;
+   %LET V09352=X09352;
+   %LET V09353=X09353;
+   %LET V09354=X09354;
+   %LET V09401=X09401;
+   %LET V09405=X09405;
+   %LET V09408=X09408;
+   %LET V09409=X09409;
+   %LET V09410=X09410;
+   %LET V09414=X09414;
+   %LET V09415=X09415;
+   %LET V09416=X09416;
+   %LET V09417=X09417;
+   %LET V09512=X09512;
+   %LET V09513=X09513;
+   %LET V09516=X09516;
+   %LET V09518=X09518;
+   %LET V09519=X09519;
+   %LET V09521=X09521;
+   %LET V09528=X09528;
+   %LET V09603=X09603;
+   %LET V09605=X09605;
+   %LET V09606=X09606;
+   %LET V09607=X09607;
+   %LET V09608=X09608;
+   %LET V09610=X09610;
+   %LET V09611=X09611;
+   %LET V09612=X09612;
+   %LET V09702=X09702;
+   %LET V09703=X09703;
+   %LET V09704=X09704;
+   %LET V09801=X09801;
+   %LET V09802=X09802;
+   %LET V09803=X09803;
+   %LET V09804=X09804;
+   %LET V1039=X1039;
+   %LET V1044=X1044;
+   %LET V108 =X108 ;
+   %LET V114 =X114 ;
+   %LET V120 =X120 ;
+   %LET V126 =X126 ;
+   %LET V132 =X132 ;
+   %LET V14=X14;
+   %LET V202 =X202 ;
+   %LET V208 =X208 ;
+   %LET V2101=X2101;
+   %LET V2102=X2102;
+   %LET V214 =X214 ;
+   %LET V220=X220;
+   %LET V220 =X220 ;
+   %LET V2201=X2201;
+   %LET V2202=X2202;
+   %LET V226=X226;
+   %LET V2501=X2501;
+   %LET V2502=X2502;
+   %LET V3005=X3005;
+   %LET V3006=X3006;
+   %LET V3014=X3014;
+   %LET V3103=X3103;
+   %LET V33001=X33001;
+   %LET V3401=X3401;
+   %LET V3501=X3501;
+   %LET V372=X372;
+   %LET V3721=X3721;
+   %LET V3727=X3727;
+   %LET V3902=X3902;
+   %LET V3914=X3914;
+   %LET V3915=X3915;
+   %LET V3923=X3923;
+   %LET V3928=X3928;
+   %LET V3929=X3929;
+   %LET V3930=X3930;
+   %LET V3932=X3932;
+   %LET V4006=X4006;
+   %LET V4010=X4010;
+   %LET V4011=X4011;
+   %LET V4012=X4012;
+   %LET V4018=X4018;
+   %LET V4020=X4020;
+   %LET V4022=X4022;
+   %LET V4024=X4024;
+   %LET V4026=X4026;
+   %LET V4028=X4028;
+   %LET V4030=X4030;
+   %LET V4032=X4032;
+   %LET V4100=X4100;
+   %LET V4106=X4106;
+   %LET V4135=X4135;
+   %LET V4735=X4735;
+   %LET V507=X507;
+   %LET V508=X508;
+   %LET V513=X513;
+   %LET V526=X526;
+   %LET V5702=X5702;
+   %LET V5704=X5704;
+   %LET V5706=X5706;
+   %LET V5708=X5708;
+   %LET V5710=X5710;
+   %LET V5712=X5712;
+   %LET V5714=X5714;
+   %LET V5716=X5716;
+   %LET V5718=X5718;
+   %LET V5720=X5720;
+   %LET V5722=X5722;
+   %LET V5724=X5724;
+   %LET V5729=X5729;
+   %LET V5901=X5901;
+   %LET V5902=X5902;
+   %LET V5904=X5904;
+   %LET V601=X601;
+   %LET V604=X604;
+   %LET V614=X614;
+   %LET V623=X623;
+   %LET V6577=X6577;
+   %LET V6581=X6581;
+   %LET V6582=X6582;
+   %LET V6587=X6587;
+   %LET V6591=X6591;
+   %LET V6592=X6592;
+   %LET V6789=X6789;
+   %LET V6849=X6849;
+   %LET V6861=X6861;
+   %LET V6862=X6862;
+   %LET V6863=X6863;
+   %LET V6864=X6864;
+   %LET V6865=X6865;
+   %LET V6866=X6866;
+   %LET V6867=X6867;
+   %LET V6868=X6868;
+   %LET V6869=X6869;
+   %LET V701=X701;
+   %LET V7100=X7100;
+   %LET V7101=X7101;
+   %LET V7102=X7102;
+   %LET V7103=X7103;
+   %LET V7104=X7104;
+   %LET V7105=X7105;
+   %LET V7106=X7106;
+   %LET V7107=X7107;
+   %LET V7108=X7108;
+   %LET V7109=X7109;
+   %LET V7110=X7110;
+   %LET V7111=X7111;
+   %LET V7112=X7112;
+   %LET V7113=X7113;
+   %LET V7114=X7114;
+   %LET V7115=X7115;
+   %LET V7116=X7116;
+   %LET V7117=X7117;
+   %LET V7118=X7118;
+   %LET V7119=X7119;
+   %LET V7120=X7120;
+   %LET V7121=X7121;
+   %LET V7133=X7133;
+   %LET V716=X716;
+   %LET V7193=X7193;
+   %LET V720=X720;
+   %LET V7362=X7362;
+   %LET V7401=X7401;
+   %LET V7402=X7402;
+   %LET V7508=X7508;
+   %LET V7509=X7509;
+   %LET V7510=X7510;
+   %LET V7567=X7567;
+   %LET V7575=X7575;
+   %LET V7650=X7650;
+   %LET V802=X802;
+   %LET V8023=X8023;
+   %LET V805=X805;
+   %LET V808=X808;
+   %LET V809=X809;
+   %LET V813=X813;
+   %LET V814=X814;
+   %LET V905=X905;
+   %LET V908=X908;
+   %LET V909=X909;
+   %LET V913=X913;
+   %LET V914=X914;
+   %LET V7570=X7570;
+   %LET V7571=X7571;
+   %LET V820=X820;
+   %LET V920=X920;
+   %LET V7187=X7187;
+   %LET V3104=X3104;
+   %LET V6780=X6780;
+   %LET V6784=X6784;
+   %LET V4106=X4106;
+   %LET V4511=X4511;
+   %LET V4524=X4524;
+   %LET V4525=X4525;
+   %LET V4526=X4526;
+   %LET V4543=X4543;
+   %LET V4544=X4544;
+   %LET V4700=X4700;
+   %LET V6780=X6780;
+   %LET V6784=X6784;
+   %LET V7248=X7248;
+   %LET V7248=X7248;
+   %LET V7700=X7700;
+   %LET V7700=X7700;
+   %LET V7701=X7701;
+   %LET V7702=X7702;
+   %LET V7703=X7703;
+   %LET V7704=X7704;
+   %LET V7728=X7728;
+   %LET V723=X723;
+   %LET V724=X724;
+   %LET V726=X726;
+   %LET V09305=X09305;
+   %LET V6030=X6030;
+   %LET V6124=X6124;   
+%END;
+
+
+***************************************************************************;
+* specify list of variables to be kept in the dataset;
+* to reduce the size of the public dataset, specify a more limited
+  list of variables to be kept;
+***************************************************************************;
+%* specify here variables that are only to be kept for selected years;
+  %LET ALSOKEEP=%STR();
+  %IF (&YEAR GE 1992 AND &PUBLIC NE YES) %THEN %DO;
+    %LET ALSOKEEP=%STR(Y1 YY1 WSAVED SAVED);
+  %END;
+  %ELSE %IF (&YEAR GE 1992) %THEN %DO;
+    %LET ALSOKEEP=%STR(Y1 YY1 SAVED);
+  %END;
+  %ELSE %IF (&YEAR EQ 1989) %THEN %DO;
+    %LET ALSOKEEP=%STR(X1 XX1);
+  %END;
+  %IF (&YEAR GE 1998 AND &PUBLIC NE YES) %THEN %DO;
+    %LET ALSOKEEP=&ALSOKEEP SPENDMOR;
+  %END;
+  %IF (&YEAR GE 1998) %THEN %DO;
+    %LET ALSOKEEP=%STR(&ALSOKEEP BCALL BMAGZNEWS BMAILADTV BINTERNET
+                       BFRIENDWORK BFINPRO BFINPLAN BSELF BDONT BOTHER 
+                       ICALL IMAGZNEWS IMAILADTV IINTERNET IFRIENDWORK 
+                       IFINPRO IFINPLAN ISELF IDONT IOTHER);                     
+  %END;
+  %IF (&YEAR GE 1995) %THEN %DO;
+    %LET ALSOKEEP=%STR(&ALSOKEEP BSHOPNONE BSHOPGRDL 
+                       BSHOPMODR ISHOPNONE ISHOPGRDL ISHOPMODR);
+  %END;
+  %IF (&YEAR EQ 2007 AND &PUBLIC NE YES) %THEN %DO;
+    %LET ALSOKEEP=%STR(&ALSOKEEP X3 X4 X8095 X802 X805 X30045 X5822 X5823 X09405 X09408
+                       X7364 X7366 X7586 x301 x7728 x7381 x407 x408
+	           x409 x7020 x905 X14);
+  %END;
+  %IF (&YEAR EQ 2009 AND &PUBLIC NE YES) %THEN %DO;
+    %LET ALSOKEEP=%STR(&ALSOKEEP ALT_PP1 P3 P4 P8095 P09301 P09306 P09304 P09309-P09324 
+                       P09335 P09336 P09337 P09501 P09502 P09507 P09508 P09509
+                       P09522-P09527 P09805 P09809-P09813 P09902 P09903 P091401-P091450
+                       P091460 P091470 P802 P805 P5822 P5823 P09405 P09408 P7364
+                       P7366 P7586 p301 p09101 P9006 P9007 p7728
+	           p09202 p408 p09203 p7020 p720 p905 P14);
+  %END;
+
+  %IF (&YEAR GE 2007) %THEN %DO;
+    %LET ALSOKEEP=%STR(&ALSOKEEP ADJM1 ADJM2 ONTIMEM1 ONTIMEM2 APPLIED DENIED PENACCTWD
+                       FULLAMT FEARED RISK PSAVING HABUS USPELL
+                       POSTRWORK AGEALL AGEFT RFULL FGUARANTEE FHA);
+  %END;
+   
+  %IF (&PUBLIC EQ YES) %THEN %LET KEEPLIST=&ALSOKEEP WGT Y1 YY1 WILSH
+    MARRIED KIDS AGE INCCL2 INCOME NORMINC WAGEINC BUSSEFARMINC
+    INTDIVINC KGINC SSRETINC TRANSFOTHINC AGECL EDCL LIFECL
+    FAMSTRUCT RACECL h_racecl RACE h_race HOUSECL ASSET FIN LIQ CDS
+    NMMF STOCKS BOND RETQLIQ SAVBND CASHLI OTHMA OTHFIN CHECKING
+    CALL HFIN HLIQ HCDS MSAVING HSAVING HNMMF HSTOCKS HBOND
+    HRETQLIQ HSAVBND HCASHLI HOTHMA HOTHFIN HCHECK HMMA HCALL NFIN
+    VEHIC HOUSES ORESRE NNRESRE BUS OTHNFIN HNFIN HVEHIC HHOUSES
+    HORESRE HNNRESRE HBUS HOTHNFIN DEBT MRTHEL RESDBT OTHLOC CCBAL
+    INSTALL ODEBT HDEBT HMRTHEL HPRIM_MORT PURCH1 REFIN_EVER
+    HSEC_MORT HELOC_YN HRESDBT HOTHLOC HCCBAL HINSTALL
+    HODEBT HASSET NETWORTH HOMEEQ TPAY PIRTOTAL EDUC OCCAT1 OCCAT2
+    INDCAT NHNFIN MERGEID
+    SAVRES1-SAVRES9 ANYPEN DBPLANCJ
+    DBPLANT DCPLANCJ BPLANCJ BUSVEH NBUSVEH LATE60 EQUITY EQUITINC
+    HEQUITY DEQ OWN NOWN VOWN LEASE NLEASE NVEHIC 
+    NOCHK HBROK HTRAD NSTOCKS NTRAD
+    RETEQ IRAKH PENEQ THRIFT MORTPAY CONSPAY REVPAY 
+    PIRMORT PIRCONS PIRREV VEH_INST HVEH_INST EDN_INST
+    HEDN_INST OTH_INST HOTH_INST HELOC HHELOC NH_MORT
+    HNH_MORT ANNUIT TRUSTS ACTBUS NONACTBUS HHEALTH SPHEALTH WSAVED SPENDMOR
+    &ALSOKEEP; 
+
+  %ELSE %LET KEEPLIST=&ALSOKEEP WGT0 WGT P1 PP1 X1 XX1 ALT_XX1 WILSH
+    MARRIED KIDS AGE INCCL2 INCOME NORMINC WAGEINC BUSSEFARMINC
+    INTDIVINC KGINC SSRETINC TRANSFOTHINC P3 AGECL EDCL LIFECL
+    FAMSTRUCT RACECL h_racecl RACE h_race HOUSECL ASSET FIN LIQ CDS
+    NMMF STOCKS BOND RETQLIQ SAVBND CASHLI OTHMA OTHFIN CHECKING
+    CALL HFIN HLIQ HCDS MSAVING HSAVING HNMMF HSTOCKS HBOND
+    HRETQLIQ HSAVBND HCASHLI HOTHMA HOTHFIN HCHECK HMMA HCALL NFIN
+    VEHIC HOUSES ORESRE NNRESRE BUS OTHNFIN HNFIN HVEHIC HHOUSES
+    HORESRE HNNRESRE HBUS HOTHNFIN DEBT MRTHEL RESDBT OTHLOC CCBAL
+    INSTALL ODEBT HDEBT HMRTHEL HPRIM_MORT PURCH1 REFIN_EVER
+    HSEC_MORT HELOC_YN HRESDBT HOTHLOC HCCBAL HINSTALL
+    HODEBT HASSET NETWORTH HOMEEQ TPAY PIRTOTAL EDUC OCCAT1 OCCAT2
+    INDCAT NHNFIN
+    SAVRES1-SAVRES9 ANYPEN DBPLANCJ
+    DBPLANT DCPLANCJ BPLANCJ BUSVEH NBUSVEH LATE60 EQUITY EQUITINC
+    HEQUITY DEQ OWN NOWN VOWN LEASE NLEASE NVEHIC 
+    NOCHK MERGEID REGION HBROK HTRAD NSTOCKS NTRAD
+    RETEQ P3006 X30009 IRAKH PENEQ THRIFT MORTPAY CONSPAY REVPAY 
+    PIRMORT PIRCONS PIRREV VEH_INST HVEH_INST EDN_INST
+    HEDN_INST OTH_INST HOTH_INST HELOC HHELOC NH_MORT
+    HNH_MORT ANNUIT TRUSTS URBAN ACTBUS NONACTBUS HHEALTH SPHEALTH
+    &ALSOKEEP;
+
+* NOTE: variable NWCAT is computed following this data step, and the
+  value of this variable is merged back into the final dataset;
+* MERGEID is dropped at the end;
+
+***************************************************************************;
+
+  DATA %UNQUOTE(SCFB&YEAR)(KEEP=&KEEPLIST);
+
+    %IF (&PUBLIC NE YES) %THEN %DO;
+      SET %UNQUOTE(SCF&YEAR)%STR(.)&SCFDS;
+    %END;
+    %ELSE %DO;
+      SET IN%STR(.)&SCFDS;
+    %END;
+
+
+***************************************************************************;
+*   sample and weight adjustments;
+
+*   only keep observations with valid ID and weight;
+    IF (&ID>0 & &IID>0 & P42001>0);
+
+*   dummy merge variable for adding quantile calculations after this
+    data step;
+    MERGEID=1;
+
+*   divide weight by 5 so totals estimated on the 5 implicates
+    jointly are correct;
+*   NOTE: this variable is renamed to WGT09 in the combined panel data
+    set and is the weight to use when computing estimates;
+    WGT=P42001/5;
+
+*   retain original weight: WGT0;
+    WGT0=P42001;
+/*
+*   include hardcoded adjustments to weights intended to dampen the
+    influence of overly influential cases identified by graphical
+    analysis of the distributions of data;
+    %IF (&PUBLIC NE YES) %THEN %DO;
+      %INCLUDE HC&YEAR; 
+    %END;
+*/
+*   demographic variables;
+
+*   age of the household head, and categorical variable:
+    1:<35, 2:35-44, 3:45-54, 4:55-64, 5:65-74, 6:>=75;
+    AGE=&V14;
+    AGECL=1+(AGE GE 35)+(AGE GE 45)+(AGE GE 55)+(AGE GE 65)+(AGE GE 75);
+
+
+*   education of the HH head, and categorical variable:
+    1=no high school diploma/GED, 2=high school diploma or GED,
+    3=some college, 4=college degree;
+    EDUC=&V5901;
+    IF &V5904 EQ 1 THEN EDCL=4;
+    ELSE IF EDUC GE 13 THEN EDCL=3;
+    ELSE IF (&V5902 IN (1 2)) THEN EDCL=2;
+    ELSE EDCL=1;
+
+*   marital status of the HH head: 1=married/living with partner,
+    2=neither married nor living with partner;
+    IF (&V8023 IN (1 2)) THEN MARRIED=1;
+    ELSE MARRIED=2;
+
+*   number of children (including natural children/step-children/
+    foster children of head/spouse/partner);
+*   NOTE: from 1995 forward, household listing information collected
+    for one fewer HH member;
+    ARRAY REL{*} &V108 &V114 &V120 &V126 &V132 &V202 &V208 &V214 &V220 &V226;
+    KIDS=0;
+    DO I=1 TO DIM(REL);
+      KIDS=KIDS+(REL{I}=4|REL{I}=13|REL{I}=36);
+    END;
+
+*   labor force participation: 1=working in some way, 0=not working
+    at all;
+    IF ((&V4100 >=50 & &V4100 <= 80)| &V4100=97) THEN LF=0;
+      ELSE LF=1;
+
+*   life cycle variables: 1=head under 55 + not married/LWP + no
+    children, 2=head under 55 + married/LWP + no children, 3=head
+    under 55 + married/LWP + children, 4=head under 55 + not
+    married/LWP + children, 5=head 55 or older and working,
+    6=head 55 or older and not working;
+    IF AGE<55 AND MARRIED NE 1 AND KIDS EQ 0 THEN LIFECL=1;
+    ELSE IF AGE<55 AND MARRIED EQ 1 AND KIDS EQ 0 THEN LIFECL=2;
+    ELSE IF AGE<55 AND MARRIED EQ 1 AND KIDS GT 0 THEN LIFECL=3;
+    ELSE IF AGE<55 AND MARRIED NE 1 AND KIDS GT 0 THEN LIFECL=4;
+    ELSE IF AGE>54 AND LF=1 THEN LIFECL=5;
+    ELSE IF AGE>54 AND LF=0 THEN LIFECL=6;    
+
+*   family structure: 1=not married/LWP + children, 
+    2=not married/LWP + no children + head under 55, 
+    3=not married/LWP + no children + head 55 or older, 
+    4=married/LWP+ children, 5=married/LWP + no children;
+
+    IF MARRIED NE 1 AND KIDS >= 1 THEN FAMSTRUCT=1;
+    ELSE IF MARRIED NE 1 AND KIDS = 0 AND AGE<55 THEN FAMSTRUCT=2;
+    ELSE IF MARRIED NE 1 AND KIDS = 0 AND AGE>54 THEN FAMSTRUCT=3;
+    ELSE IF MARRIED EQ 1 AND KIDS >= 1 THEN FAMSTRUCT=4;
+    ELSE IF MARRIED EQ 1 AND KIDS =0 THEN FAMSTRUCT=5;
+    ELSE PUT "ERROR: UNCLASSIFIED FAMILY STRUCTURE " Y1= MARRIED= KIDS= AGE=;
+
+*   race/ethnicity;
+*   NOTE: prior to 1998, the SCF only asked for one response.
+    In 1998, respondents were allowed to give multiple responses,
+    but they were asked to give first the category they identified
+    with most strongly.  Few people gave more than one response.
+    For purposes of continuity with prior data, define the 1998+
+    variable in terms of the strongest identification;
+*   beginning in 2004, respondents were also asked a question to
+    determine whether they were of Hispanic/Latino culture or origin;
+    %IF (&YEAR GE 2004) %THEN %DO;
+*     1=white non-Hispanic, 2=nonwhite or Hispanic;
+*     For the public data, we only keep the first two race variables
+      and only code P6810 with a 1 if there is any response or a 5 if
+      there is no response;
+      %IF (&PUBLIC EQ NO) %THEN %DO;
+        RACECL=1+(X6809 ^= 1 | X6810 NOT IN (1 0) | X6811 NOT IN (1 0) |
+          X6812 NOT IN (1 0) | X6813 NOT IN (1 0) | X6814 NOT IN (1 0));
+        H_RACECL=1+(X6809 ^= 1 | X6810 NOT IN (1 0) | X6811 NOT IN (1 0) |
+          X6812 NOT IN (1 0) | X6813 NOT IN (1 0) | X6814 NOT IN (1 0) |
+          X7004=1);
+      %END;
+      %ELSE %IF (&PUBLIC EQ YES) %THEN %DO;
+        RACECL=1+(X6809 ^= 1 | X6810 ^=5);
+        H_RACECL=1+(X6809 ^= 1 | X6810 ^=5 | X7004=1);
+      %END;
+*     1=white non-Hispanic, 2=black/African-American, 3=Hispanic,
+      4=Asian (only available in internal data set, see codebook), 
+      5=other;
+      IF X6809=1 THEN RACE=1;
+      ELSE IF X6809=2 THEN RACE=2;
+      ELSE IF X6809=3 THEN RACE=3;
+      ELSE IF X6809=4 THEN RACE=4;
+      ELSE RACE=5;
+
+      IF X6809=1 & X7004^=1 THEN H_RACE=1;
+      ELSE IF X6809=2 & X7004^=1 THEN H_RACE=2;
+      ELSE IF X6809=3 | X7004=1 THEN H_RACE=3;
+      ELSE IF X6809=4 THEN H_RACE=4;
+      ELSE H_RACE=5;
+    %END;
+    %ELSE %IF (&YEAR GE 1998) %THEN %DO;
+*     1=white non-Hispanic, 2=nonwhite or Hispanic;
+*     For the public data, we only keep the first two race variables
+      and only code X6810 with a 1 if there is any response or a 5 if
+      there is no response;
+      %IF (&PUBLIC EQ NO) %THEN %DO;
+        RACECL=1+(X6809 ^= 1 | X6810 NOT IN (1 0) | X6811 NOT IN (1 0) |
+          X6812 NOT IN (1 0) | X6813 NOT IN (1 0) | X6814 NOT IN (1 0));
+      %END;
+      %ELSE %IF (&PUBLIC EQ YES) %THEN %DO;
+        RACECL=1+(X6809 ^= 1 | X6810 ^=5);
+      %END;
+*     1=white non-Hispanic, 2=black/African-American, 3=Hispanic,
+      4=Asian (only available in internal data set, see codebook), 
+      5=other;
+      IF X6809=1 THEN RACE=1;
+      ELSE IF X6809=2 THEN RACE=2;
+      ELSE IF X6809=3 THEN RACE=3;
+      ELSE IF X6809=4 THEN RACE=4;
+      ELSE RACE=5;
+      H_RACECL=RACECL;
+      H_RACE=RACE;
+    %END;
+    %ELSE %DO;
+      RACECL=1+(X5909 ^= 5);
+      IF X5909=5 THEN RACE=1;
+      ELSE IF X5909=4 THEN RACE=2;
+      ELSE IF X5909=3 THEN RACE=3;
+      ELSE IF X5909=2 THEN RACE=4;
+      ELSE RACE=5;
+      H_RACECL=RACECL;
+      H_RACE=RACE;
+    %END;
+    
+*   work status categories for head:
+    1=work for someone else, 2=self-employed/partnership,
+    3=retired/disabled + (student/homemaker/misc. not working and
+    age 65 or older), 4=other groups not working (mainly those under
+    65 and out of the labor force);
+    IF &V4106=1 THEN OCCAT1=1;
+    ELSE IF (&V4106 IN (2 3 4)) THEN OCCAT1=2;
+    ELSE IF ((&V4100 IN (50 52))|(&V4100 IN (21 23 30 70 80 97 85 -7) &
+      AGE>=65)) THEN OCCAT1=3;
+    ELSE IF (&V14<65) THEN OCCAT1=4;
+    ELSE PUT "ERROR: UNCLASSIFIED WORK STATUS " Y1= &V14= &V4100= &V4106=;
+    
+*   occupation classification for head:
+    1=managerial/professional 2=technical/sales/services,
+    3=other (incl. production/craft/repair workers, operators, 
+    laborers, farmers, foresters, fishers) 4=not working;
+    %IF (&PUBLIC EQ NO) %THEN %DO;
+      %IF (&YEAR LT 2004) %THEN %DO;
+        IF (3 <= &V7401 <=37) THEN OCCAT2=1;
+        ELSE IF (43 <= &V7401 <=199) THEN OCCAT2=1;
+        ELSE IF (203 <= &V7401 <=235) THEN OCCAT2=2;
+        ELSE IF (243 <= &V7401 <=285) THEN OCCAT2=2;
+        ELSE IF (303 <= &V7401 <=389) THEN OCCAT2=2;
+        ELSE IF (403 <= &V7401 <=407) THEN OCCAT2=2;
+        ELSE IF (413 <= &V7401 <=427) THEN OCCAT2=2;
+        ELSE IF (433 <= &V7401 <=469) THEN OCCAT2=2;
+        ELSE IF (473 <= &V7401 <=499) THEN OCCAT2=3;
+        ELSE IF (503 <= &V7401 <=699) THEN OCCAT2=3;
+        ELSE IF (703 <= &V7401 <=799) THEN OCCAT2=3;
+        ELSE IF (803 <= &V7401 <=859) THEN OCCAT2=3;
+        ELSE IF (863 <= &V7401 <=889) THEN OCCAT2=3;
+        ELSE IF (903 <= &V7401 <=905) THEN OCCAT2=3;
+        ELSE IF (&V7401=0) THEN OCCAT2=4;
+        ELSE PUT "ERROR: UNCLASSIFIED OCCUPATION STATUS " Y1= &V14= &V4100= &V4106= &V7401=;
+      %END;
+      %ELSE %IF (&YEAR GE 2004) %THEN %DO;
+        IF (10 <= &V7401 <=200) THEN OCCAT2=1;
+        ELSE IF (220 <= &V7401 <=1530) THEN OCCAT2=1;
+        ELSE IF (1600 <= &V7401 <=1860) THEN OCCAT2=1;
+        ELSE IF (2000 <= &V7401 <=3650) THEN OCCAT2=1;
+        ELSE IF (1540 <= &V7401 <=1560) THEN OCCAT2=2;
+        ELSE IF (4700 <= &V7401 <=5930) THEN OCCAT2=2;
+        ELSE IF (1900 <= &V7401 <=1960) THEN OCCAT2=2;
+        ELSE IF (7900 <= &V7401 <=7900) THEN OCCAT2=2;
+        ELSE IF (3700 <= &V7401 <=4320) THEN OCCAT2=2;
+        ELSE IF (4400 <= &V7401 <=4400) THEN OCCAT2=2;
+        ELSE IF (4420 <= &V7401 <=4650) THEN OCCAT2=2;
+        ELSE IF (9840 <= &V7401 <=9840) THEN OCCAT2=2;
+        ELSE IF (6200 <= &V7401 <=7850) THEN OCCAT2=3;
+        ELSE IF (8330 <= &V7401 <=8330) THEN OCCAT2=3;
+        ELSE IF (8350 <= &V7401 <=8350) THEN OCCAT2=3;
+        ELSE IF (8440 <= &V7401 <=8630) THEN OCCAT2=3;
+        ELSE IF (8740 <= &V7401 <=8760) THEN OCCAT2=3;
+        ELSE IF (8810 <= &V7401 <=8810) THEN OCCAT2=3;
+        ELSE IF (4410 <= &V7401 <=4410) THEN OCCAT2=3;
+        ELSE IF (7920 <= &V7401 <=8320) THEN OCCAT2=3;
+        ELSE IF (8340 <= &V7401 <=8340) THEN OCCAT2=3;
+        ELSE IF (8360 <= &V7401 <=8430) THEN OCCAT2=3;
+        ELSE IF (8640 <= &V7401 <=8730) THEN OCCAT2=3;
+        ELSE IF (8800 <= &V7401 <=8800) THEN OCCAT2=3;
+        ELSE IF (8830 <= &V7401 <=9750) THEN OCCAT2=3;
+        ELSE IF (210 <= &V7401 <=210) THEN OCCAT2=3;
+        ELSE IF (4340 <= &V7401 <=4350) THEN OCCAT2=3;
+        ELSE IF (6000 <= &V7401 <=6130) THEN OCCAT2=3;
+        ELSE IF (&V7401=0) THEN OCCAT2=4;
+        ELSE PUT "ERROR: UNCLASSIFIED OCCUPATION STATUS " Y1= &V14= &V4100= &V4106= &V7401=;
+      %END;
+    %END;
+    %IF (&PUBLIC EQ YES) %THEN %DO;
+       IF &V7401=1 THEN OCCAT2=1;
+       ELSE IF &V7401 IN(2 3) THEN OCCAT2=2;
+       ELSE IF &V7401 IN(4 5 6) THEN OCCAT2=3;
+       ELSE IF &V7401=0 THEN OCCAT2=4;
+    %END;
+
+*   industry classifications for head: 1=mining + construction +
+    manufacturing, 2=transportation + communications + utilities and
+    sanitary services + wholesale trade + finance, insurance and
+    real estate, 3=agriculture + retail trade + services + public
+    administration;
+*   NOTE: for the public version of the dataset, the categories 2
+    and 3 are combined;
+    %IF (&PUBLIC EQ NO) %THEN %DO;
+      %IF (&YEAR LT 2004) %THEN %DO;
+        IF (OCCAT1>=3) THEN INDCAT=4;
+        ELSE IF  (&V7402>=40 & &V7402<=392) THEN INDCAT=1;
+        ELSE IF ((&V7402>=400 & &V7402<=571)|(&V7402>=700 & &V7402<=712))
+          THEN INDCAT=2;
+        ELSE IF ((&V7402>0 & &V7402<40)|(&V7402>=580 & &V7402=<691)|
+          (&V7402>=721)) THEN INDCAT=3;
+      %END;
+      %ELSE %DO;
+        IF (OCCAT1>=3) THEN INDCAT=4;
+        ELSE IF  ((370 <= &V7402 <= 490) | (&V7402=770) | 
+          (1070 <= &V7402 <= 3990)) THEN INDCAT=1; 
+        ELSE IF ((570 <= &V7402 <= 690) | (4070 <= &V7402 <= 4590) | 
+          (6070 <= &V7402 <= 6390) | (6470 <= &V7402 <= 6780) | 
+          (6870 <= &V7402 <= 7190)) THEN INDCAT=2; 
+        ELSE IF ((170 <= &V7402 <= 290) | (4670 <= &V7402 <= 5790) |
+          (7270 <= &V7402 <= 9890)) THEN INDCAT=3; 
+      %END;
+    %END;
+    %ELSE %DO;
+      IF (OCCAT1>=3) THEN INDCAT=4;
+      ELSE IF (&V7402 IN (2 3)) THEN INDCAT=1;
+      ELSE INDCAT=2;
+    %END;
+    
+*   Census regions: 1=northeast, 2=north central, 3=south, 4=west;
+    %IF (&YEAR NE 1989 AND &PUBLIC NE YES) %THEN %DO;
+      REGION=X30022;
+    %END;
+    %ELSE %IF (&PUBLIC NE YES) %THEN %DO;
+      REGION=x40083;
+    %END;
+
+*   Urbanicity: 1=MSA, 2=non-MSA;
+    %IF (&PUBLIC NE YES) %THEN %DO;
+      IF X8460<100000 THEN URBAN=1;
+      ELSE URBAN=2;
+    %END;
+
+*   Health status variable: 1=excellent, 2=good, 3=fair, 4=poor;
+    HHEALTH=(&V6030);
+    SPHEALTH=(&V6124);
+
+***************************************************************************;
+*   income variables;
+    
+*   HH income in previous calendar year;
+*   NOTE: For 2004 forward, IRA and withdrawals from tax-
+    deferred pension accounts added to INCOME below;
+    INCOME=MAX(0,&V5729);
+
+*   HH income components in previous calendar year;
+*   NOTE: Components of income may not sum to INCOME;
+    WAGEINC=&V5702;
+    BUSSEFARMINC=&V5704+&V5714;
+    INTDIVINC=&V5706+&V5708+&V5710;
+    KGINC=&V5712;
+    SSRETINC=&V5722;
+    TRANSFOTHINC=&V5716+&V5718+&V5720+&V5724;
+
+*   for 2004 and beyond, add in the amount of withdrawals from IRAs
+    and tax-deferred pension accounts (already included in earlier
+    years). need to convert pension withdrawals to annual frequency,
+    using macro that converts amounts to monthly, then multiply by 12;;
+    %IF (&YEAR GE 2004) %THEN %DO;
+      IF &V091126=5 THEN &V091131=0;
+      PENACCTWD=&V091007+&V091131;
+      INCOME=INCOME+PENACCTWD;
+      SSRETINC=SSRETINC+PENACCTWD;
+    %END;
+
+*   normal income;
+    NORMINC=.B;
+    %IF (&YEAR GE 1995) %THEN %DO;
+      IF (&V7650^=3) THEN NORMINC=&V7362;
+      ELSE NORMINC=&V5729;
+    %END;
+    
+*   if ADJINC=YES, adjust actual/normal income to level of survey year;
+    %IF (&ADJINC EQ YES) %THEN %DO;
+      ARRAY PYRINC {*} INCOME WAGEINC BUSSEFARMINC INTDIVINC KGINC 
+        SSRETINC TRANSFOTHINC;
+      DO I=1 TO DIM(PYRINC);
+        PYRINC{I}=PYRINC{I}*&CPILAG;
+      END; 
+      %IF (&YEAR GE 1995) %THEN %DO;
+        NORMINC=NORMINC*&CPILAG;
+      %END;
+    %END;
+
+***************************************************************************; 
+
+*   attitudinal and related variables;
+
+*   risk preference;
+    RISK=&V3014;
+    PSAVING=&V7187;
+    
+*   adjusting for durables purchases/investments, spent
+    more/same/less than income in past year;
+*   WSAVED: 1=spending exceeded income, 2=spending equaled income,
+    3=spending less than income;
+*   SAVED: 1=spent less than income, 0=all others;
+    %IF (&YEAR GE 1992) %THEN %DO;
+      IF (&V7508>0) THEN WSAVED=&V7508;
+      ELSE IF (&V7510=2 & &V7509=1) THEN WSAVED=3;
+      ELSE WSAVED=&V7510;
+      SAVED=(WSAVED=3);
+    %END;
+    
+*   reasons for saving: 1=cant save, 2=education, 3=family, 4=home,
+    5=purchases, 6=retirement, 7=liquidity/the future, 8=investment,
+    9=no particular reason;
+*   NOTE: multiple saving reasons may be reported: here choosing only
+    first (most important) reason;
+    ARRAY SAVRES {*} SAVRES1-SAVRES9;
+    ARRAY RES {*} &V3006 /*&V3007*/ ;
+    DO I=1 TO DIM(SAVRES);
+      SAVRES{I}=0;
+    END;
+    DO I=1 TO DIM(RES);
+      IF (RES{I} IN (-2 -1)) THEN SAVRES{1}=1;
+      ELSE IF (RES{I} IN (1 2)) THEN SAVRES{2}=1;
+      ELSE IF (RES{I} IN (3 5 6)) THEN SAVRES{3}=1;
+      ELSE IF (RES{I} EQ 11) THEN SAVRES{4}=1;
+      ELSE IF (RES{I} IN (12 13 14 15 16 27 29 30 9 18 20 41)) THEN
+        SAVRES{5}=1;
+      ELSE IF (RES{I} IN (17 22)) THEN SAVRES{6}=1;
+      ELSE IF (RES{I} IN (23 24 25 32 92 93)) THEN SAVRES{7}=1;
+      ELSE IF (RES{I} IN (21 26 28)) THEN SAVRES{8}=1;
+      ELSE IF (RES{I} IN (31 33 40 90 91 -7)) THEN SAVRES{9}=1;
+      ELSE PUT "UNCLASSIFIED SAVING REASON! " &ID= RES{I}=;
+    END;
+/*
+    1.  Children's education; education of grandchildren
+    2.  Own education; spouse's education; education -- NA for whom
+    3.  "For the children/family"  -- NFS; "to help the kids
+        out"; estate
+    5.  Wedding, Bar Mitzvah, and other ceremonies (except 17)
+    6.  To have children/a family
+    9.  To move (except 11)
+   11.  Buying own house (code summer cottage in 12)
+   12.  Purchase of cottage or second home for own use
+   13.  Buy a car, boat or other vehicle
+   14.  Home improvements/repairs
+   15.  To travel; take vacations; take other time off
+   16.  Buy durable household goods, appliances, home
+        furnishings; hobby and recreational items; for other 
+        purchases not codable above or not further specified; 
+        "buy things when we need/want them"; moving/special occasions 
+   17.  Burial/funeral expenses
+   18.  Charitable or religious contributions
+   20.  "To enjoy life"
+   21.  Buying (investing in) own business/farm; equipment for
+        business/farm
+   22.  Retirement/old age
+   23.  Reserves in case of unemployment
+   24.  In case of illness; medical/dental expenses
+   25.  Emergencies; "rainy days"; other unexpected needs; for
+       "security" and independence
+   26.  Investments reasons (to get interest, to be
+        diversified, to buy other forms of assets)
+   27.  To meet contractual commitments (debt repayment,
+        insurance, taxes, etc.), to pay off house
+   28.  "To get ahead;" to advance standard of living
+   29.  Ordinary living expenses/bills
+   31.  No reason (except 90, 91, 92)
+   32.  "For the future"
+   90.  Had extra income; saved becaused had the money left
+        over -- no other purpose specified
+   91.  Wise/prudent thing to do; good discipline to save; habit
+   92.  Liquidity; to have cash available/on hand
+   -1.  Don't/can't save; "have no money"
+*/
+
+
+*   R would spend more if assets appreciated in value:
+    1=agree strongly, 2=agree somewhat, 3=neither agree nor
+    disagree, 4=disagree somewhat, 5=disagree strongly;
+    %IF (&YEAR GE 1998) %THEN %DO;
+      SPENDMOR=&V6789;
+    %END;
+    
+*   household had any payments more than 60 days past due in last year;
+    LATE60=(&V3005=1);       
+    
+*   R or spouse had unemployment spell in past 12 months;
+    USPELL=(&V6780=1|&V6784=1);  
+    
+*   calculate retirment age variables;
+*   BACKFILL IMPUTED RETIRMENT AGE FROM IMPUTED YEARS;   
+    IF &V7248 IN (. .N .D .R) & &V4544>0 THEN &V7248=&V14+&V4544;
+      ELSE IF &V7248 IN (. .N .D .R)  & &V4544=-2 THEN &V7248=-2;
+      
+    IF &V7700 IN (. .N .D .R)  & &V4526>0 THEN &V7700=&V14+&V4526;
+       ELSE IF &V7700 IN (. .N .D .R)  & &V4526=-2 THEN &V7700=-2;
+    
+    IF &V7728 IN (. .N .D .R)  & &V4524>0 THEN &V7728=&V4524+&V14;
+       ELSE IF &V7728 IN (. .N .D .R)  & &V4524=-2 THEN &V7728=-2;
+    
+    *AGE STOP FULL TIME;
+    IF &V4511=1 THEN AGEFT=&V7728;
+       ELSE IF &V4511=2 THEN AGEFT=&V7701;
+       ELSE AGEFT=&V7703;
+       
+    
+    *AGE STOP ALTOGETHER;
+    IF &V4511=1 THEN DO;
+       IF &V7728=-2 THEN AGEALL=-2;
+       IF &V4525=1 THEN AGEALL=&V7700;
+       IF &V4525=5 THEN AGEALL=&V7728;
+    END;
+    IF &V4511=2 THEN DO;
+       IF &V4543=1 & &V7701=-2 THEN AGEALL=-2;
+       ELSE AGEALL=&V7702;
+    END;
+    IF &V4511=0 THEN AGEALL=&V7704;
+    
+    POSTRWORK=(&V4525=1)    ;   
+    RFULL=(P4511=1);
+     
+**   *************************************************************************;
+     
+*     shopping for financial services;
+     
+       %IF (&YEAR GE 1995) %THEN %DO;   
+         BSHOPNONE=(&V7100=1);
+         BSHOPGRDL=(&V7100=5);
+         BSHOPMODR=(&V7100 IN (2 3 4));
+     
+         ISHOPNONE=(&V7111=1);
+         ISHOPGRDL=(&V7111=5);
+         ISHOPMODR=(&V7111 IN (2 3 4));
+       %END;
+       
+       * information sources used in borrowing and investment;
+         ARRAY SRCS {*} BCALL BMAGZNEWS BMAILADTV BINTERNET BFRIENDWORK BFINPRO BSELF 
+            BDONT BOTHER ICALL IMAGZNEWS IMAILADTV IINTERNET IFRIENDWORK IFINPRO ISELF 
+            IDONT IOTHER BFINPLAN IFINPLAN;
+         DO J=1 TO DIM(SRCS);
+           SRCS{J}=0;
+         END;
+         %IF (&YEAR GE 1998) %THEN %DO;
+           %IF (&YEAR EQ 1998) %THEN %DO;
+             ARRAY BORRSRC {*} &V7101-&V7110 &V6849;	   
+          ARRAY INVSRC {*} &V7112-&V7121;			   
+        %END;
+        %ELSE %DO;
+          ARRAY BORRSRC {*} &V7101-&V7110 &V6849 &V6861-&V6863;	   
+          ARRAY INVSRC {*} &V7112-&V7121 &V6865-&V6868;			   
+        %END;
+        DO I=1 TO DIM(BORRSRC);						   
+          IF BORRSRC{I}=1 THEN BCALL=1;
+          ELSE IF BORRSRC{I}=2 THEN BMAGZNEWS=1;			   
+          ELSE IF BORRSRC{I} IN (3 6 4 32) THEN BMAILADTV=1;
+          ELSE IF BORRSRC{I}=5 THEN BINTERNET=1;	   
+          ELSE IF BORRSRC{I} IN (7 18) THEN BFRIENDWORK=1;
+          ELSE IF BORRSRC{I} IN (10 11 20 21 23 24) THEN BFINPRO=1;
+          ELSE IF (BORRSRC{I} IN (8 9 12)) THEN BFINPLAN=1;
+          ELSE IF BORRSRC{I} IN (13 17 19 22) THEN BSELF=1;
+          ELSE IF BORRSRC{I} IN (14 16) THEN BDONT=1;	
+          ELSE IF BORRSRC{I} IN (-7) THEN BOTHER=1;			   
+          ELSE IF BORRSRC{I}^=0 THEN PUT "WARNING: UNCLASSIFIED BORROWING INFO SOURCE: " BORRSRC{I}=;
+        END;
+        DO I=1 TO DIM(INVSRC);
+          IF INVSRC{I}=1 THEN ICALL=1;   
+          ELSE IF INVSRC{I}=2 THEN IMAGZNEWS=1;			   
+          ELSE IF INVSRC{I} IN (3 6 4 32) THEN IMAILADTV=1;
+          ELSE IF INVSRC{I}=5 THEN IINTERNET=1;
+          ELSE IF INVSRC{I} IN (7 18 19) THEN IFRIENDWORK=1;
+          ELSE IF INVSRC{I} IN (10 11 20 23 24 25) THEN IFINPRO=1;
+          ELSE IF (INVSRC{I} IN (8 9 12)) THEN IFINPLAN=1;
+          ELSE IF INVSRC{I} IN (13 17 21 22) THEN ISELF=1;
+          ELSE IF INVSRC{I} IN (14 16) THEN IDONT=1;	
+          ELSE IF INVSRC{I} IN (-7) THEN IOTHER=1;			   
+          ELSE IF INVSRC{I}^=0 THEN PUT "WARNING: UNCLASSIFIED INVESTMENT INFO SOURCE: " INVSRC{I}=;    
+        END;	
+      %END;
+
+
+  APPLIED=(&V09201=1);
+  DENIED =(&V09202=1);
+  FULLAMT=(&V408=1);
+  FEARED =(&V09203=1);
+  
+***************************************************************************;
+*   assets, debts, networth, and related varaibles;
+
+***************************************************************************;
+*   financial assets and related variables;
+    
+*   checking accounts other than money market;
+    CHECKING=MAX(0,&V091001);
+*   have any checking account: 1=yes, 0=no;
+    HCHECK=(&V3501=1);
+*   have no checking account: 1=no checking, 0=have checking;
+*   NOTE: NOCHK=0 may include instances where R has a money market
+    account that is used for checking;
+    NOCHK=(&V3501=5);
+*   people w/o checking accounts: ever had an account?: 1=yes, 5=no;
+*   EHCHKG=X3502;
+*   people w/o checking accounts: why have no account?:
+    1=don*t write enough checks to make it worthwhile,
+    2=minimum balance is too high, 3=do not like dealing with banks,
+    4=service charges are too high, 5=no bank has convenient hours
+    or location, 12=checkbook has been/could be lost/stolen,
+    13=haven*t gotten around to it, 14=R has alternative source of
+    checking services (MMA, MIA, etc) (does not include individuals
+    who write checks for R), 15=R not allowed to have account (e.g.,
+    asset test for welfare), 20=R does not need/want a checking
+    account (NEC), 21=credit problems, bankruptcy, R does not meet
+    depository*s qualifications for having an account, 95=don*t have
+    (enough) money, -1=can*t manage/balance a checking account,
+    -7=other, 0=inapplicable. (R has a checking account: X3501=1);
+
+*   savings accounts or money market account;
+    MSAVING=MAX(0,&V091008);
+*   have savings account: 1=yes, 0=no;
+    HSAVING=((&V091009=1)|(&V091010=1)|(&V091011=1)|(&V091013=1)|(&V091015=1));
+*   have any type of money market account: 1=yes, 0=no;
+    HMMA=((&V091012=1)|(&V091014=1));
+    
+*   call accounts at brokerages;
+    CALL=MAX(0,&V3930);
+*   have call account: 1=yes, 0=no;
+    HCALL=(CALL>0);
+    
+*   all types of transactions accounts (liquid assets);
+    LIQ=CHECKING+MSAVING+CALL;
+*   have any types of transactions accounts: 1=yes, 0=no;
+*   here include even accounts with zero reported balances;
+    HLIQ=(LIQ>0 | &V3501=1 | &V3727=1 | &V3929=1);
+
+*   include accounts with zero balances (for tabling program);  
+    LIQ=MAX(HLIQ,LIQ);
+
+*   certificates of deposit;
+    CDS=MAX(0,&V3721);
+*   have CDs: 1=yes, 0=no;
+    HCDS=(CDS>0);
+    
+*   mutual funds;
+*   total directly-held mutual funds, excluding MMMFs;
+    NMMF=&V091018;
+
+*   have any mutual funds excluding MMMFs: 1=yes, 0=no;
+    HNMMF=(NMMF>0);
+    
+*   stocks;
+    STOCKS=MAX(0,&V3915);
+*   have stocks: 1=yes, 0=no;
+    HSTOCKS=(STOCKS>0);
+*   number different companies in which hold stock;
+    NSTOCKS=&V3914;
+*   Wilshire index of stock prices;
+      WILSH=&V33001;
+
+*   total bonds, not including bond funds or savings bonds;
+    BOND=MAX(0,&V091021);
+*   have bonds: 1=yes, 0=no;
+    HBOND=(BOND>0);
+    
+*   quasi-liquid retirement accounts (IRAs and thrift-type accounts);
+*   individual retirement accounts/Keoghs;
+      IRAKH=MAX(0,&V091003);
+
+
+*     account-type pension plans (included if type is 401k, 403b,
+      thrift, savings, SRA, or if participant has option to borrow or
+      withdraw);               
+      THRIFT=MAX(0,SUM(0,&V091108,&V091708));
+*     PENEQ counts thrift amounts invested in stock;
+      PENEQ=MAX(0,&V091108)*(&V091115=1)+MAX(0,&V091108)*(&V091115=3|&V091115=30)
+           *(MAX(0,&V091116)/10000)
+           +MAX(0,&V091708)*(&V091715=1)+MAX(0,&V091708)*(&V091715=3|&V091715=30)
+           *(MAX(0,&V091716)/10000);
+           
+*   current or future pensions (accumulated in an account for the R/S); 
+    ALLPENS=MAX(0,&V091127);
+
+*     total quasi-liquid: sum of IRAs, thrift accounts, and future pensions; 
+*     this version includes currently received benefits;
+      RETQLIQ=IRAKH+THRIFT+ALLPENS;
+*     have quasi-liquid assets: 1=yes, 0=no;
+      HRETQLIQ=(RETQLIQ>0);
+
+*   other pension characteristics:
+    ANYPEN: 1=either head or spouse/partner has any type of
+    pension, 0=otherwise,
+    DBPLANCJ: 1=either head or spouse/partner has a defined benefit
+    pension on a current job, 0=otherwise,
+    DBPLANT: 1=either head or spouse/partner has DB plan on current
+    job or some type of pension from a past job to be received in
+    the future, 0=otherwise,
+    DCPLANCJ: 1=either head or spouse/partner has any type of
+    account-based plan on a current job, 0=otherwise
+    BPLANCJ: 1=either head or spouse/partner has both types of pension
+    plan on a current job;
+    ANYPEN=(&V4135=1|&V4735=1|&V091124=1); 
+    DBPLANCJ=(&V091117=1|&V091717=1) ;
+    DBPLANT=(DBPLANCJ=1|&V091132=1) ;
+    DCPLANCJ=(&V091107=1|&V091707=1);
+    BPLANCJ =(DBPLANCJ=1 & DCPLANCJ=1); 
+
+*   savings bonds;
+    SAVBND=&V3902;
+*   have savings bonds: 1=yes, 0=no;
+    HSAVBND=(SAVBND>0);
+    
+*   cash value of whole life insurance;
+    CASHLI=MAX(0,&V4006);
+*   have cash value LI: 1=yes, 0=no;
+    HCASHLI=(CASHLI>0);
+    
+*   other managed assets (trusts, annuities and managed investment
+    accounts in which HH has equity interest);
+      ANNUIT=SUM(0,&V6577);
+      TRUSTS=MAX(0,&V6587);
+      
+      OTHMA=ANNUIT+TRUSTS;
+
+*   have other managed assets: 1=yes, 0=no;
+    HOTHMA=(OTHMA>0);
+    
+*   other financial assets: includes loans from the household to
+    someone else, future proceeds, royalties, futures, non-public
+    stock, deferred compensation, oil/gas/mineral invest., cash
+    n.e.c.;
+*   NOTE: because of the collapsing of categories in the public
+    version of the dataset, both codes 71 (oil/gas/mineral leases or
+    investments) and 72 (futures contracts, stock options) are
+    combined in code 71: thus, the sum will be treated as a
+    nonfinancial asset.
+    Additionally, codes 77 (future lottery/prize receipts) and 79
+    (other obligations to R, tax credits) are combined in code 77;
+    %IF (&PUBLIC EQ NO) %THEN %DO;
+      OTHFIN=&V4018+&V4022*(&V4020 IN (61,62,63,64,65,66,67,72,73,74,77,79
+        80,81,82,83))+
+        &V4026*(&V4024 IN (61,62,63,64,65,66,67,72,73,74,77,79,80,81,82,83))+
+        &V4030*(&V4028 IN (61,62,63,64,65,66,67,72,73,74,77,79,80,81,82,83));
+    %END;
+    %ELSE %DO;
+      OTHFIN=&V4018+&V4022*(&V4020 IN (61,62,63,64,65,66,71,72,73,74,77,
+        80,81,-7))+
+        &V4026*(&V4024 IN (61,62,63,64,65,66,71,72,73,74,77,80,81,-7))+
+        &V4030*(&V4028 IN (61,62,63,64,65,66,71,72,73,74,77 80,81,-7));
+    %END;
+
+*   have other financial assets: 1=yes, 0=no;
+    HOTHFIN=(OTHFIN>0);
+    
+*   financial assets invested in stock:
+    1. directly-held stock 
+    2. stock mutual funds: full value if described as stock mutual fund,
+       1/2 value of combination mutual funds
+    3. IRAs/Keoghs invested in stock: 
+       full value if mostly invested in stock, 
+       1/2 value if split between stocks/bonds or stocks/money market,
+       1/3 value if split between stocks/bonds/money market
+    4. other managed assets w/equity interest (annuities, trusts, MIAs):
+       full value if mostly invested in stock,
+       1/2 value if split between stocks/MFs & bonds/CDs, or
+    	 "mixed/diversified,"
+       1/3 value if "other"
+    5. thrift-type retirement accounts invested in stock
+       full value if mostly invested in stock
+       1/2 value if split between stocks and interest earning assets
+    6. savings accounts classified as 529 or other accounts that may
+       be invested in stocks;
+
+      EQUITY=STOCKS+.5*NMMF+
+        &V091003*((&V091004=1)+(&V091004=3|&V091004=30)*(MAX(0,&V091005)/10000))+
+        ANNUIT*((&V6581=1)+(&V6581=3|&V6581=30)*(MAX(0,&V6582)/10000))+
+        TRUSTS*((&V6591=1)+(&V6591=3|&V6591=30)*(MAX(0,&V6592)/10000))+PENEQ+
+        MAX(0,&V091127)*((&V091128=1)+(&V091128=3|&V091128=30)*(MAX(0,&V091129)/10000))+
+        &V091008*((&V091016=1)*(MAX(0,&V091017)/10000));
+
+*   have stock equity: 1=yes, 0=no;
+    HEQUITY=(EQUITY>0);
+*   equity in directly held stocks, stock mutual funds, and
+    combination mutual funds;
+    DEQ=STOCKS+.5*NMMF;
+
+*   equity in quasi-liquid retirement assets;
+      RETEQ=&V091003*((&V091004=1)+(&V091004=3|&V091004=30)*(MAX(0,&V091005)/10000))+
+        PENEQ+MAX(0,&V091127)*((&V091128=1)
+        +(&V091128=3|&V091128=30)*(MAX(0,&V091129)/10000));
+*   ratio of equity to normal income;
+    EQUITINC=.;
+      EQUITINC=EQUITY/MAX(100,NORMINC);
+    
+*   brokerage account info;
+*   have a brokerage account;
+    HBROK=(&V3923=1);
+*   traded in the past year;
+    HTRAD=(&V3928>0);
+*   number of trades per year; 
+      IF (&V7193 NOT IN (0 -1 1 2 3 4 5 6 8 11 12 18 25)) THEN PUT
+        "WARNING: UNRECOGNIZED FREQUENCY FOR P7193! " &ID= &V7193=;
+      PTRAD=((&V7193=1)*250+(&V7193=2)*52+(&V7193=3)*26+(&V7193=4)*12
+       +(&V7193=5)*4+(&V7193=6)+(&V7193=8)+(&V7193=11)*2 +
+        (&V7193=12)*6+(&V7193=18)*8*250+(&V7193=25)/2);
+      NTRAD=PTRAD*MAX(0,&V3928); 
+    
+*   total financial assets;
+    FIN=LIQ+CDS+NMMF+STOCKS+BOND+RETQLIQ+SAVBND+CASHLI+OTHMA+OTHFIN;
+*   have any financial assets: 1=yes, 0=no;
+    HFIN=(FIN>0);
+
+***************************************************************************;
+*   nonfinancial assets and related variables;
+    
+*   value of all vehicles (includes autos, motor homes, RVs, airplanes,
+    boats);
+      VEHIC=MAX(0,&V09603)+MAX(0,&V09608);
+*   have any vehicles: 1=yes, 0=no;
+    HVEHIC=(VEHIC>0);
+*   vehicle supplied by a business;
+*   have a business vehicle: 1=yes, 0=no;
+    BUSVEH=(&V2501=1);
+*   number of business vehicles;
+    NBUSVEH=&V2502;
+*   owned vehicles (excludes motorcycles, RVs, motor homes,
+    tractors, snow blowers etc);
+*   have an owned vehicle: 1=yes, 0=no;
+    OWN=(&V2201=1);
+*   number of owned vehicles;
+    NOWN=&V2202;
+*   value of owned vehicles;
+      VOWN=&V09603;
+
+*   leased vehicles;
+*   have leased vehicle: 1=yes, 0=no;
+    LEASE=(&V2101=1);
+*   number of leased vehicles;
+    NLEASE=&V2102;
+*   total number of vehicles (owned and leased);
+    NVEHIC=NOWN+NLEASE; 
+*   new model-year car (owned or leased); 
+
+
+
+    
+*   primary residence;
+
+*   for farmers, assume &V507 (percent of farm used for
+    farming/ranching) is maxed at 90%;
+    IF (&V507>9000) THEN &V507=9000;
+*   compute value of business part of farm net of outstanding mortgages;
+    FARMBUS=0;
+    IF (&V507>0) THEN DO;
+      FARMBUS=(&V507/10000)*(&V513+&V526-&V805-&V905);
+      &V805=&V805*((10000-&V507)/10000);
+      &V808=&V808*((10000-&V507)/10000);
+      &V813=&V813*((10000-&V507)/10000);
+      &V905=&V905*((10000-&V507)/10000);
+      &V908=&V908*((10000-&V507)/10000);
+      &V913=&V913*((10000-&V507)/10000);
+      IF (&V09342=1) THEN DO;
+        FARMBUS=FARMBUS-&V09344*(&V507/10000);
+        &V09344=&V09344*((10000-&V507)/10000);
+        &V09345=&V09345*((10000-&V507)/10000);
+      END;
+    END;
+*   value of primary residence;
+    HOUSES=SUM(0,&V604,&V614,&V623,&V716)+((10000-MAX(0,&V507))/10000)*(&V513+&V526);
+
+*******QUICK FIX FOR HOUSING VALUES FOR RANCHES;
+*IF HOUSES=0 THEN HOUSES=&V09305;
+
+*   NOTE: if R only owns a part of the property, the values reported
+    should be only Rs share;
+*   have owned principal residence: 1=yes, 0=no;
+    HHOUSES=(HOUSES^=0);
+
+*   homeownership class: 1=owns ranch/farm/mobile home/house/condo/
+    coop/etc., 2=otherwise;
+    IF (&V508 IN (1 2)|&V601 IN (1 2 3)|&V701 IN (1 3 4 5 6 8)|
+        (&V701=-7 & &V7133=1)) THEN HOUSECL=1;
+    ELSE HOUSECL=2; 
+
+*   other residential real estate: includes land contracts/notes
+    household has made, properties other than the principal
+    residence that are coded as 1-4 family residences, time shares,
+    and vacations homes;
+    ORESRE=SUM(0,&V09401,&V09405);
+*   have other residential real estate: 1=yes, 0=no;
+    HORESRE=(ORESRE>0);
+    
+*   net equity in nonresidential real estate: real estate other than
+    the principal residence, properties coded as 1-4 family
+    residences, time shares, and vacation homes net of mortgages and
+    other loans taken out for investment real estate;
+    NNRESRE =&V09414-&V09417;
+*   remove installment loans for PURPOSE=78 from NNRESRE only
+    where such property exists--otherwise, if ORESRE exists, include
+    loan as RESDBT---otherwise, treat as installment loan;
+    IF (NNRESRE^=0) THEN DO;
+      FLAG781=1;
+      NNRESRE=NNRESRE-&V09802*(&V09801=78);
+    END;
+    ELSE FLAG781=0;
+*   have nonresidential real estate assets: 1=yes, 0=no;
+    HNNRESRE=(NNRESRE ^=0); 
+    
+*   business interests;
+*   for businesses where the HH has an active interest, value is net
+    equity if business were sold today, plus loans from HH to
+    business, minus loans from business to HH not previously
+    reported, plus value of personal assets used as collateral for
+    business loans that were reported earlier;
+*   for businesses where the HH does not have an active interest,
+    market value of the interest;
+    
+/*   reset one business value where R overstated business worth;
+    IF PP1=2908 THEN DO;
+           P09510=1;
+           P09511=2;
+           P09512=40000;
+           P09513=1;
+           P09514=11;
+           P09521=25000;
+    END;*/
+    BUS=MAX(0,&V09521)+MAX(0,&V09516)-MAX(0,&V09518)*(&V09519=5)+
+      MAX(0,&V09512)*(&V09513 IN (1 6))+FARMBUS+MAX(0,&V09528);
+    ACTBUS=MAX(0,&V09521)+MAX(0,&V09516)-MAX(0,&V09518)*(&V09519=5)+
+      MAX(0,&V09512)*(&V09513 IN (1 6))+FARMBUS;/**/
+    NONACTBUS=MAX(0,&V09528);
+*   have business assets: 1=yes, 0=no;
+*   definition keys off of ownership question rather than BUS variable
+    to deal with businesses with a zero equity value; 
+    HBUS=(&V3103=1 | &V3401=1);
+    HABUS=(&V3104=1|&V3104=3 );
+    
+*   other nonfinancial assets: defined as total value of
+    miscellaneous assets minus other financial assets:
+    includes gold, silver (incl. silverware), other metals or metals
+    NA type, jewelry, gem stones (incl. antique), cars (antique or
+    classic), antiques, furniture, art objects, paintings,
+    sculpture, textile art, ceramic art, photographs, (rare) books,
+    coin collections, stamp collections, guns, misc. real estate
+    (exc. cemetery), cemetery plots, china, figurines,
+    crystal/glassware, musical instruments, livestock, horses,
+    crops, oriental rugs, furs, other collections, incl. baseball
+    cards, records, wine, oil/gas/mineral leases or investments,
+    computer, equipment/tools, association or exchange membership,
+    and other miscellaneous assets;
+    OTHNFIN=&V4022+&V4026+&V4030-OTHFIN+&V4018;
+*   have other nonfinancial assets: 1=yes, 0=no;
+    HOTHNFIN=(OTHNFIN>0);
+    
+*   total nonfinancial assets;
+    NFIN=VEHIC+HOUSES+ORESRE+NNRESRE+BUS+OTHNFIN;
+*   have any nonfinancial assets: 1=yes, 0=no;
+    HNFIN=(NFIN^=0);
+*   total nonfinancial assets excluding principal residences;
+    NHNFIN=NFIN-HOUSES;
+  
+***************************************************************************;
+*   total assets;
+    ASSET=FIN+NFIN;
+*   have any assets: 1=yes, 0=no;
+    HASSET=(ASSET^=0);
+
+***************************************************************************;
+*   debts and related variables;
+    
+*   housing debt (mortgage, home equity loans and HELOCs);
+      HELOC=MAX(0,&V09344);
+      MRTHEL=SUM(0,&V805,&V905,&V09344);
+      NH_MORT=MRTHEL-HELOC;
+
+*   Home equity equals home value less all home secured debt;
+    HOMEEQ=HOUSES-MRTHEL;
+
+*   have principal residence debt: 1=yes, 0=no;
+    HMRTHEL=(MRTHEL>0);
+    HHELOC=(HELOC>0); 
+    HNH_MORT=(NH_MORT>0);
+
+*   have principal residence debt by type: 1=yes, 0=no;
+*   have first-lien mortgage;
+    HPRIM_MORT=(&V723 IN (1 2)); 
+*   have purchase loan - first mortgage; 
+    PURCH1=(HPRIM_MORT=1 & (&V720=&V802)); 
+*   refinanced;
+    REFIN_EVER=(HPRIM_MORT=1 & (&V802>&V720));
+    
+*   first mortgage FHA or VA;
+    FGUARANTEE=(&V724=1);
+    FHA=(&V726=1);
+
+*   extracted equity from refinance;
+*   - note: X7137 only available from 1995 survey forward;
+/**** COULD CONSTRUCT BUT MUST BE A COMBINATION OF 2007 & 2009 DATA
+      HEXTRACT_EVER=(X7137 IN(2 3 4));
+*****/      
+*   have second/third mortgage;
+    HSEC_MORT=(&V905>0);
+*   have a HELOC;
+    HELOC_YN=(&V09340=1);
+
+*   have adjustable rate mortgage;
+    ADJM1=(&V820=1);
+    ADJM2=(&V920=1);
+
+*		paying of motgage on time;    
+    ONTIMEM1=&V7571;
+    ONTIMEM2=&V7570;
+
+/*   hard code adjustments to P09322 for land contracts;
+    IF PP1=   57 THEN P09322=1;
+    IF PP1=  396 THEN P09322=1;
+    IF PP1=  521 THEN P09322=1;
+    IF PP1=  841 THEN  DO;
+      P09322=3;
+      P09323=1;
+      P09324=-7;
+    END;
+    IF PP1=  915 THEN P09322=1;
+    IF PP1= 1225 THEN P09322=1;
+    IF PP1= 1227 THEN P09322=1;
+    IF PP1= 1231 THEN P09322=2;
+    IF PP1= 1383 THEN P09322=1;
+    IF PP1= 1758 THEN P09322=2;
+    IF PP1= 2555 THEN P09322=1;
+    IF PP1= 2619 THEN P09322=2;
+    IF PP1= 2622 THEN P09322=1;
+    IF PP1= 2860 THEN P09322=2;
+    IF PP1= 3190 THEN P09322=1;
+    
+* P09323 imputes from X7137 codeframe;
+    IF P09323=3 THEN P09323=2;    
+    */
+*   other lines of credit;
+    OTHLOC=MAX(0,&V09352);
+*   have balances on lines of credit other than HELOCs: 1=yes, 0=no;
+    HOTHLOC=(OTHLOC>0);
+    
+*   debt for other residential property: includes land contracts,
+    residential property other than the principal residence, misc
+    vacation, and installment debt reported for cottage/vacation home
+    code 67); 
+*   NOTE: debt for nonresidential real estate is netted out of the
+    corresponding assets; 
+    RESDBT=MAX(0,&V09408);
+*   see note above at definition of NNRESRE;
+    IF (FLAG781^=1 & ORESRE>0) THEN DO;
+      FLAG782=1;
+      RESDBT=RESDBT+&V09802*(&V09801=78);
+    END;
+    ELSE FLAG782=0;
+*   for parallel treatment, only inlcude PURPOSE=67 where
+    ORESRE>0--otherwise, treat as installment loan;
+    IF (ORESRE>0) THEN DO;
+      FLAG67=1;
+      RESDBT=RESDBT+&V09802*(&V09801=67); *assuming that this debt is majority of multiple outstanding debt;
+    END;
+    ELSE FLAG67=0;
+
+*   have other residential real estate debt: 1=yes, 0=no;
+    HRESDBT=(RESDBT>0);
+    
+*   credit card debt;
+*   NOTE: from 1992 forward, specific question addresses revolving
+    debt at stores, and this amount is treated as credit card debt here;
+    CCBAL = MAX(0,&V09206)+MAX(0,&V7575);
+*   have credit card balances: 1=yes, 0=no;
+    HCCBAL=(CCBAL>0);
+    
+*   installment loans not classified elsewhere;
+*   subdivide into vehicle loans, education loans, and other
+    installment loans;
+
+      VEH_INST=&V09605+&V09610;
+      EDN_INST=&V09702+&V09802*(&V09801=83);
+      INSTALL=&V09605+&V09610+&V09702+&V1044;
+
+*   see notes above at definitions of NNRESRE and RESDBT;
+    IF (FLAG781=0 & FLAG782=0) THEN DO;
+      INSTALL=INSTALL+&V09802*(&V09801=78);
+    END;
+    IF (FLAG67=0) THEN DO;
+      INSTALL=INSTALL+&V09802*(&V09801=67);
+    END;
+    INSTALL=INSTALL+&V09802*(&V09801 NOT IN (67 78));
+    OTH_INST=INSTALL-VEH_INST-EDN_INST;
+    HVEH_INST=(VEH_INST>0);
+    HEDN_INST=(EDN_INST>0);
+    HOTH_INST=(OTH_INST>0);
+
+*   have any installment debt: 1=yes, 0=no;
+    HINSTALL=(INSTALL>0);
+    
+*   margin loans; 
+*   except in 1995, the SCF does not ask whether the margin loan
+    was reported earlier: the instruction explicitly excludes loans
+    reported earlier;
+    OUTMARG=MAX(0,&V3932);
+    
+*   pension loans not reported earlier;
+
+      OUTPEN1=MAX(0,&V091111)*(&V091159=5);
+      OUTPEN2=MAX(0,&V091711)*(&V091759=5);
+    
+*   other debts (loans against pensions, loans against life insurance,
+    margin loans, miscellaneous);
+    ODEBT=OUTPEN1+OUTPEN2+MAX(0,&V4010)+MAX(0,&V4032)+OUTMARG;
+*   have any other debts: 1=yes, 0=no;
+    HODEBT=(ODEBT>0);
+    
+*   total debt;
+    DEBT=MRTHEL+RESDBT+OTHLOC+CCBAL+INSTALL+ODEBT;
+*   have any debts: 1=yes, 0=no;
+    HDEBT=(DEBT>0);
+
+***************************************************************************;
+*   total net worth;
+    NETWORTH=ASSET-DEBT;
+    IF (NETWORTH<=.Z) THEN PUT Y1= &PID= FIN= NFIN= DEBT= LIQ= CDS= NMMF=
+      STOCKS=  BOND=  RETQLIQ=  SAVBND=  CASHLI=  OTHMA=  OTHFIN= 
+      VEHIC= HOUSES= ORESRE= NNRESRE= BUS= OTHNFIN=
+      MRTHEL= RESDBT= OTHLOC= CCBAL= INSTALL= ODEBT=;
+
+***************************************************************************;
+
+
+***************************************************************************;
+***************************************************************************;
+*   the following section deals with characteristics of loans:
+    compute loan payments and related measures, array loan balances by
+    use of the borrowed funds and by type of institution from which
+    the loans was obtained;
+
+***************************************************************************;
+*   compute payments on all loans on a monthly basis;
+
+*   credit card payments;
+*   use HREF assumption of 2.5% per month for credit card payments;
+    CCPAY=.025*CCBAL;
+
+*   mortgage payments;
+    IF (&V808>0) THEN PAYMORT1=&V808*(%MCONV(F=&V809));
+    ELSE IF (&V813>0) THEN PAYMORT1=&V813*(%MCONV(F=&V814));
+    ELSE PAYMORT1=0;
+    IF (&V908>0) THEN PAYMORT2=&V908*(%MCONV(F=&V909));
+    ELSE IF (&V913>0) THEN PAYMORT2=&V913*(%MCONV(F=&V914));
+    ELSE PAYMORT2=0;
+    IF (&V1039>0) THEN PAYMORTO=&V1039*(%MCONV(F=&V7567));
+    ELSE PAYMORTO=0;
+
+*   lines of credit;
+    IF (&V09345>0) THEN PAYLOC1=&V09345*(%MCONV(F=&V09346));
+    ELSE PAYLOC1=0;
+    IF (&V09353>0) THEN PAYLOCO=&V09353*(%MCONV(F=&V09354));
+    ELSE PAYLOCO=0;
+
+
+*   land contracts, assumed to be interest payments on amount
+    outstanding, at 8 percent APR;
+    PAYLC1=(1.08**(1/12)-1)*&V09401;
+
+*   other residential property;
+    IF (&V09409>0) THEN PAYORE1=&V09409*(%MCONV(F=&V09410));    
+    ELSE PAYORE1=0;
+
+*   vehicle loans;
+      IF (&V09606>0) THEN PAYVEH1=&V09606*(%MCONV(F=&V09607));    
+        ELSE PAYVEH1=0;
+
+      IF (&V09611>0) THEN PAYVEO1=&V09611*(%MCONV(F=&V09612));    
+        ELSE PAYVEO1=0;
+
+*   student loans;
+      IF (&V09703>0) THEN PAYEDU1=&V09703*(%MCONV(F=&V09704));    
+      ELSE PAYEDU1=0;
+
+*   installment loans (loans for nonresidential property not included);
+      IF (&V09803>0) THEN PAYILN1=(&V09801^=78|FLAG781=0)*&V09803*
+        (%MCONV(F=&V09804));
+      ELSE PAYILN1=0;
+
+*   payments on margin loans, assumed to be interest payments on
+    balance outstanding, paid at 8 percent APR;
+    PAYMARG=(1.08**(1/12)-1)*OUTMARG;
+*   loans against insurance policies;
+    PAYINS=MAX(0,&V4011)*(%MCONV(F=&V4012));
+*   payments on other loans, set to zero;
+    PAYOTH=0;
+*   payments on loans against pension plans not previously reported
+    (details available starting in 1998, but still only include loans
+    not previously reported); 
+
+      IF (&V091159=5) THEN PAYPEN1=&V091112*(%MCONV(F=&V091113));
+      ELSE PAYPEN1=0;
+      IF (&V091759=5) THEN PAYPEN2=&V091712*(%MCONV(F=&V091713));
+      ELSE PAYPEN2=0;
+
+*   array all loan payments;
+    ARRAY PAYMENTS {*} CCPAY PAYMORT1 PAYMORT2 PAYMORTO
+      PAYLOC1 PAYLOCO PAYLC1  PAYORE1 PAYVEH1 PAYVEO1   
+      PAYEDU1 PAYILN1 PAYMARG PAYINS PAYOTH PAYPEN1 PAYPEN2 ;
+
+*   compute total monthly payments;
+    TPAY=0;
+    DO I=1 TO DIM(PAYMENTS);
+      TPAY=TPAY+MAX(0,PAYMENTS{I});
+      IF PAYMENTS{I}<=.Z THEN PUT 'ERROR? MISSING PAYMENTS AMOUNT ' &ID=
+        PAYMENTS{I}=;
+    END;
+
+
+*   total mortgage payments (including HELOCs);
+    MORTPAY=PAYMORT1+PAYMORT2+PAYORE1+PAYLC1+PAYLOC1;
+*   total non-mortgage non-revolving consumer debt;
+    CONSPAY=PAYMORTO+PAYVEH1+PAYVEO1+PAYEDU1+PAYILN1+PAYMARG+PAYINS+PAYOTH+PAYPEN1+PAYPEN2;
+*   total revolving debt (excluding HELOCs);
+    REVPAY=CCPAY+PAYLOCO;
+
+*   compute ratio of monthly payments to monthly income;
+*   NOTE: for ADJINC=YES, income already inflated to same dollars as
+    payments;
+    %LET CPIADJ89=(&CPIADJ*(1886/&CPIBASE));
+    PIRTOTAL=(TPAY/MAX((INCOME/12),(100/&CPIADJ89)));
+    PIRMORT=(MORTPAY/MAX((INCOME/12),(100/&CPIADJ89)));
+    PIRCONS=(CONSPAY/MAX((INCOME/12),(100/&CPIADJ89)));
+    PIRREV=(REVPAY/MAX((INCOME/12),(100/&CPIADJ89)));
+    
+    
+
+***************************************************************************;
+/****NOT COMPLETED YET
+*   miscellaneous data fixes;
+    %IF (&PUBLIC NE YES) %THEN %DO;
+      %INCLUDE FIX&YEAR;
+    %END;
+****/
+***************************************************************************;
+*   where REAL=YES, put key dollar terms into dollars corresponding
+    the BASE year;
+%*  adjust all dollar values;
+    %IF (&REAL EQ YES) %THEN %DO;
+      ARRAY VALUE{*} 
+        IRAKH PENEQ PSAVING &V905 VOWN
+        INCOME NORMINC WAGEINC BUSSEFARMINC
+        INTDIVINC KGINC SSRETINC TRANSFOTHINC ASSET FIN LIQ CDS
+        NMMF STOCKS BOND RETQLIQ SAVBND CASHLI OTHMA OTHFIN CHECKING
+        CALL MSAVING NFIN VEHIC HOUSES ORESRE NNRESRE BUS OTHNFIN  
+        DEBT MRTHEL RESDBT OTHLOC CCBAL
+        INSTALL ODEBT NETWORTH HOMEEQ TPAY NHNFIN EQUITY 
+        DEQ RETEQ IRAKH PENEQ THRIFT MORTPAY CONSPAY REVPAY 
+        PIRMORT PIRCONS PIRREV VEH_INST HVEH_INST EDN_INST
+        HEDN_INST OTH_INST HOTH_INST HELOC 
+        ANNUIT TRUSTS ACTBUS NONACTBUS;
+      DO I=1 TO DIM(VALUE);
+        IF VALUE{I}<=.Z & VALUE{I}^=.B THEN PUT "MISSING VALUE " &ID=
+          VALUE{I}=;
+        IF VALUE{I} NOT IN(-1 -2) THEN VALUE{I}=VALUE{I}*&CPIADJ;
+      END;
+    %END;
+
+***************************************************************************;
+*   create categorical variables based on dollar variables;
+*   NOTE: need to put here so categories are fixed in real terms when
+    REAL=YES;
+    IF INCOME<10000 THEN INCCL2=1;
+    ELSE IF 10000<=INCOME<25000 THEN INCCL2=2;
+    ELSE IF 25000<=INCOME<50000 THEN INCCL2=3;
+    ELSE IF 50000<=INCOME<100000 THEN INCCL2=4;
+    ELSE IF INCOME>=100000 THEN INCCL2=5;
+
+***************************************************************************;
+  RUN;
+***************************************************************************;
+***************************************************************************;
+* compute net worth and income quantiles and merge with main dataset;
+
+  %MACRO PCTL(VAR=,PPOINTS=,TAG=);
+    PROC MEANS NOPRINT DATA=SCFB&YEAR;
+      VAR WGT;
+      OUTPUT OUT=TOTPOP SUM=TOTPOP;
+    RUN;
+    DATA TOTPOP;
+      SET TOTPOP;
+      MERGEID=1;
+    RUN;
+    DATA %UNQUOTE(&TAG.CAT)(KEEP=WGT &VAR &PID &ID TOTPOP);
+      MERGE SCFB&YEAR(KEEP=WGT &VAR &PID MERGEID &ID) TOTPOP;
+      BY MERGEID;
+    RUN;
+    PROC SORT DATA=&TAG.CAT;
+      BY &VAR &PID;
+    RUN;
+    DATA %UNQUOTE(&TAG.CAT)(KEEP=&ID &TAG.CAT);
+      SET %UNQUOTE(&TAG.CAT);
+      RETAIN CUMSUM 0;
+
+*     extract number of items in percentile point list;
+      %LET I=1;
+      %LET NEXT=%SCAN(&PPOINTS,&I);
+      %DO %UNTIL (&NEXT EQ );
+        %LET I=%EVAL(&I + 1);
+        %LET NEXT=%SCAN(&PPOINTS,&I);
+      %END;
+      %LET NCAT=%EVAL (&I-1);
+        
+      CUMSUM=CUMSUM+WGT;
+
+      %LET NEXT=%SCAN(&PPOINTS,&NCAT);
+      IF ((CUMSUM/TOTPOP)>=%UNQUOTE(%STR(.)&NEXT)) THEN &TAG.CAT=&NCAT;
+      %LET I=%EVAL(&NCAT-1);
+      %LET NEXT=%SCAN(&PPOINTS,&I));
+      %DO I=1 %TO %EVAL(&NCAT-1);
+        %LET WNCAT=%EVAL(&NCAT-&I);
+        %LET NEXT=%SCAN(&PPOINTS,&WNCAT);
+        ELSE IF ((CUMSUM/TOTPOP)>=%UNQUOTE(%STR(.)&NEXT)) THEN
+          &TAG.CAT=&WNCAT;
+      %END;
+*     print out the empirical breakpoints;
+      CATVAL=&TAG.CAT;
+      IF (LAG1(CATVAL)^=CATVAL) THEN PUT &TAG.CAT= &VAR=;
+    RUN;
+    PROC SORT DATA=%UNQUOTE(&TAG.CAT);
+      BY &ID;
+    RUN;
+  %MEND PCTL;
+  %PCTL(VAR=NETWORTH,PPOINTS=0 25 50 75 90,TAG=NW);
+  %PCTL(VAR=INCOME,PPOINTS=0 20 40 60 80 90,TAG=INC);
+  %PCTL(VAR=ASSET,PPOINTS=0 20 40 60 80 90,TAG=ASSET);
+  PROC SORT DATA=SCFB&YEAR;  BY &ID;
+  RUN;
+  DATA SCFB&YEAR;
+    MERGE SCFB&YEAR NWCAT INCCAT ASSETCAT;
+    BY &ID;
+  RUN;
+
+***************************************************************************;
+***************************************************************************;
+* check for overly influential observations;
+
+* for convenience, compute mean of weight/key dollar values over implicates;
+  PROC MEANS NOPRINT;
+    WEIGHT WGT;
+    VAR WGT FIN LIQ CDS NMMF STOCKS BOND RETQLIQ SAVBND
+      CASHLI OTHMA OTHFIN NFIN VEHIC HOUSES ORESRE NNRESRE
+      BUS OTHNFIN DEBT MRTHEL RESDBT OTHLOC CCBAL INSTALL
+      ODEBT ASSET NETWORTH TPAY;
+    CLASS &ID; 
+    OUTPUT OUT=OUT0 MEAN=
+      MWGT MFIN MLIQ MCDS MNMMF MSTOCKS MBOND MRETQLIQ MSAVBND
+      MCASHLI MOTHMA MOTHFIN MNFIN MVEHIC MHOUSES MORESRE MNNRESRE
+      MBUS MOTHNFIN MDEBT MMRTHEL MRESDBT MOTHLOC MCCBAL MINSTALL
+      MODEBT MASSET MNETWORT MTPAY;
+  RUN;
+  DATA OUT0;
+    SET OUT0;
+    MERGEID=1; 
+  RUN;
+* compute weighted sum of mean over implicates for each variable;
+  PROC MEANS DATA=OUT0 NOPRINT SUM;
+    WEIGHT MWGT;
+    VAR MFIN MLIQ MCDS MNMMF MSTOCKS MBOND MRETQLIQ MSAVBND
+      MCASHLI MOTHMA MOTHFIN MNFIN MVEHIC MHOUSES MORESRE MNNRESRE
+      MBUS MOTHNFIN MDEBT MMRTHEL MRESDBT MOTHLOC MCCBAL MINSTALL
+      MODEBT MASSET MNETWORT MTPAY;
+    OUTPUT OUT=OUT1 SUM=
+      TFIN TLIQ TCDS TNMMF TSTOCKS TBOND TRETQLIQ TSAVBND
+      TCASHLI TOTHMA TOTHFIN TNFIN TVEHIC THOUSES TORESRE TNNRESRE
+      TBUS TOTHNFIN TDEBT TMRTHEL TRESDBT TOTHLOC TCCBAL TINSTALL
+      TODEBT TASSET TNETWORT TTPAY;
+  RUN;
+  DATA OUT1;
+    SET OUT1;
+    MERGEID=1;
+  RUN;
+* compare share of average of implicates to totals and print out cases
+  accounting for 1.5 percent or more of the totals;
+  DATA OUT2;
+     MERGE OUT0 OUT1;
+     BY MERGEID ;
+
+    ARRAY SVAR {*}
+      SFIN SLIQ SCDS SNMMF SSTOCKS SBOND SRETQLIQ SSAVBND
+      SCASHLI SOTHMA SOTHFIN SNFIN SVEHIC SHOUSES SORESRE SNNRESRE
+      SBUS SOTHNFIN SDEBT SMRTHEL SRESDBT SOTHLOC SCCBAL SINSTALL
+      SODEBT SASSET SNETWORT STPAY;
+    ARRAY TVAR {*}
+      TFIN TLIQ TCDS TNMMF TSTOCKS TBOND TRETQLIQ TSAVBND
+      TCASHLI TOTHMA TOTHFIN TNFIN TVEHIC THOUSES TORESRE TNNRESRE
+      TBUS TOTHNFIN TDEBT TMRTHEL TRESDBT TOTHLOC TCCBAL TINSTALL
+      TODEBT TASSET TNETWORT TTPAY;
+    ARRAY MVAR {*}
+      MFIN MLIQ MCDS MNMMF MSTOCKS MBOND MRETQLIQ MSAVBND
+      MCASHLI MOTHMA MOTHFIN MNFIN MVEHIC MHOUSES MORESRE MNNRESRE
+      MBUS MOTHNFIN MDEBT MMRTHEL MRESDBT MOTHLOC MCCBAL MINSTALL
+      MODEBT MASSET MNETWORT MTPAY;
+    DO I=1 TO DIM(SVAR);
+      SVAR{I}=MWGT*MVAR{I}/TVAR{I};
+      SVAR{I}=SVAR{I}*100;
+      SVAR{I}=ROUND(SVAR{I},.1);
+      IF (SVAR{I}>1.5) THEN PUT &ID= MWGT= MVAR{I}= TVAR{I}= SVAR{I}=;
+      IF (SVAR{I}<=.Z) THEN PUT "MISSING VALUE " &ID= MWGT= MVAR{I}=
+        TVAR{I}= SVAR{I}=;
+    END; 
+
+  RUN;
+
+***************************************************************************;
+***************************************************************************;
+* save final version of the dataset;
+  %IF (&REAL EQ YES) %THEN %LET WORKING=WORKINGR;
+  %ELSE %LET WORKING=WORKINGN;
+  %IF (&PUBLIC EQ YES) %THEN %LET DSNAME=&WORKING%STR(.SCFP);
+  %ELSE %LET DSNAME=&WORKING%STR(.SCFB);
+  DATA &DSNAME&YEAR;
+    SET SCFB&YEAR;
+    DROP MERGEID;
+  RUN;
+  PROC CONTENTS;
+  RUN;
+
+***************************************************************************;
+***************************************************************************;
+
+%MEND BULLIT;
+***************************************************************************;
+***************************************************************************;
+* CPI-U-RS here should be September values;
+* omit decimal in CPI;
+* for public datasets. adjust all to 2009 dollars;
+%BULLIT(YEAR=2009,REAL=YES,ADJINC=YES,CPIBASE=3171,PUBLIC=YES);
+%BULLIT(YEAR=2007,REAL=YES,ADJINC=YES,CPIBASE=3171,PUBLIC=YES);
+
+
+* make nominal versions of publc data;
+%BULLIT(YEAR=2009,REAL=NO,ADJINC=YES,CPIBASE=3171,PUBLIC=YES);
+%BULLIT(YEAR=2007,REAL=NO,ADJINC=YES,CPIBASE=3062,PUBLIC=YES);
+
+***************************************************************************;
+***************************************************************************;
+
+* combine 2007 and 2009 panel bulletin datasets into one dataset;
+
+%MACRO COMBO(PUBLIC=,REAL=);
+
+  %IF (&REAL EQ YES) %THEN %LET WORKING=WORKINGR;
+  %ELSE %LET WORKING=WORKINGN;
+  %IF (&PUBLIC EQ YES) %THEN %LET DSN=SCFP;
+  %ELSE %LET DSN=SCFB;
+  %IF (&PUBLIC EQ YES) %THEN %DO;
+    %LET ID=Y1;
+    %LET IID=YY1;
+  %END;
+  %ELSE %DO;
+    %LET ID=P1;
+    %LET IID=PP1;
+  %END;
+
+  DATA P2007;
+   SET &WORKING%STR(.)&DSN%STR(2007)(RENAME=(WILSH=WILSH07 MARRIED=MARRIED07 KIDS=KIDS07 
+   NORMINC=NORMINC07 WAGEINC=WAGEINC07 BUSSEFARMINC=BUSSEFARMINC07 INTDIVINC=INTDIVINC07 
+   KGINC=KGINC07 AGE=AGE07 INCCL2=INCCL207 INCOME=INCOME07 EDCL=EDCL07 LIFECL=LIFECL07 
+   FAMSTRUCT=FAMSTRUCT07 CHECKING=CHECKING07 OTHLOC=OTHLOC07 SSRETINC=SSRETINC07 
+   TRANSFOTHINC=TRANSFOTHINC07 AGECL=AGECL07 LIQ=LIQ07 CDS=CDS07 NLEASE=NLEASE07 
+   HBOND=HBOND07 HCCBAL=HCCBAL07 HOUSECL=HOUSECL07 ASSET=ASSET07
+   FIN=FIN07 RETQLIQ=RETQLIQ07  
+   SAVBND=SAVBND07 CASHLI=CASHLI07 OTHMA=OTHMA07 OCCAT1=OCCAT107
+   NMMF=NMMF07 STOCKS=STOCKS07  
+   BOND=BOND07 HCDS=HCDS07 MSAVING=MSAVING07 HSAVING=HSAVING07 HNMMF=HNMMF07 CALL=CALL07 
+   HFIN=HFIN07 HLIQ=HLIQ07 HOTHMA=HOTHMA07 HOTHFIN=HOTHFIN07
+   HCHECK=HCHECK07 HMMA=HMMA07     
+   HRETQLIQ=HRETQLIQ07 HSAVBND=HSAVBND07 HCASHLI=HCASHLI07 NNRESRE=NNRESRE07 BUS=BUS07 
+   OTHNFIN=OTHNFIN07 HNFIN=HNFIN07 VEHIC=VEHIC07 HOUSES=HOUSES07
+   ORESRE=ORESRE07 HOTHNFIN=HOTHNFIN07  
+   DEBT=DEBT07 MRTHEL=MRTHEL07 RESDBT=RESDBT07 HORESRE=HORESRE07
+   HNNRESRE=HNNRESRE07 HBUS=HBUS07  
+   HMRTHEL=HMRTHEL07 INDCAT=INDCAT07 NHNFIN=NHNFIN07 NFIN=NFIN07
+   INSTALL=INSTALL07 ODEBT=ODEBT07  
+   HDEBT=HDEBT07 HSEC_MORT=HSECMORT07 HELOC_YN=HELOCYN07
+   HRESDBT=HRESDBT07 HOTHLOC=HOTHLOC07     
+   HPRIM_MORT=HPRIMMORT07 PURCH1=PURCH107 REFIN_EVER=REFINEVER07
+   HOMEEQ=HOMEEQ07 TPAY=TPAY07  
+   PIRTOTAL=PIRTOTAL07 EDUC=EDUC07 HODEBT=HODEBT07 HASSET=HASSET07
+   NETWORTH=NETWORTH07 NVEHIC=NVEHIC07  
+   REVPAY=REVPAY07 NTRAD=NTRAD07 HHOUSES=HHOUSES07 ANYPEN=ANYPEN07
+   DBPLANCJ=DBPLANCJ07 EQUITINC=EQUITINC07  
+   BUSVEH=BUSVEH07 NBUSVEH=NBUSVEH07 LATE60=LATE6007 EQUITY=EQUITY07
+   DBPLANT=DBPLANT07 DCPLANCJ=DCPLANCJ07  
+   BPLANCJ=BPLANCJ07 NOWN=NOWN07 VOWN=VOWN07 LEASE=LEASE07 CCBAL=CCBAL07
+   HEQUITY=HEQUITY07 DEQ=DEQ07  
+   OWN=OWN07 HBROK=HBROK07 HTRAD=HTRAD07 NSTOCKS=NSTOCKS07
+   HINSTALL=HINSTALL07 NOCHK=NOCHK07  
+   THRIFT=THRIFT07 MORTPAY=MORTPAY07 CONSPAY=CONSPAY07 OTHFIN=OTHFIN07
+   RETEQ=RETEQ07 IRAKH=IRAKH07  
+   PENEQ=PENEQ07 VEH_INST=VEHINST07 HVEH_INST=HVEHINST07
+   EDN_INST=EDNINST07 HSTOCKS=HSTOCKS07     
+   PIRMORT=PIRMORT07 PIRCONS=PIRCONS07 PIRREV=PIRREV07 HELOC=HELOC07
+   HHELOC=HHELOC07 NH_MORT=NHMORT07  
+   HCALL=HCALL07 HEDN_INST=HEDNINST07 OTH_INST=OTHINST07
+   HOTH_INST=HOTHINST07 ACTBUS=ACTBUS07  
+   NONACTBUS=NONACTBUS07 OCCAT2=OCCAT207 HVEHIC=HVEHIC07
+   HNH_MORT=HNHMORT07 ANNUIT=ANNUIT07 TRUSTS=TRUSTS07  
+   NWCAT=NWCAT07 INCCAT=INCCAT07 ASSETCAT=ASSETCAT07 WSAVED=WSAVED07
+   SAVED=SAVED07 SPENDMOR=SPENDMOR07 
+   ADJM1=ADJM107 ADJM2=ADJM207 ONTIMEM1=ONTIMEM107 ONTIMEM2=ONTIMEM207
+   APPLIED=APPLIED07 DENIED=DENIED07  
+   FULLAMT=FULLAMT07 FEARED=FEARED07 RISK=RISK07 PSAVING=PSAVING07 HABUS=HABUS07
+   BCALL=BCALL07 BMAGZNEWS=BMAGZNEWS07 BMAILADTV=BMAILADTV07 BINTERNET=BINTERNET07 
+   BFRIENDWORK=BFRIENDWORK07 BFINPRO=BFINPRO07 BFINPLAN=BFINPLAN07 BSELF=BSELF07 
+   BDONT=BDONT07 BOTHER=BOTHER07 ICALL=ICALL07 IMAGZNEWS=IMAGZNEWS07 
+   IMAILADTV=IMAILADTV07 IINTERNET=IINTERNET07 IFRIENDWORK=IFRIENDWORK07 
+   IFINPRO=IFINPRO07 IFINPLAN=IFINPLAN07 ISELF=ISELF07 IDONT=IDONT07 
+   IOTHER=IOTHER07 BSHOPNONE=BSHOPNONE07 BSHOPGRDL=BSHOPGRDL07 
+   BSHOPMODR=BSHOPMODR07 ISHOPNONE=ISHOPNONE07 ISHOPGRDL=ISHOPGRDL07 
+   ISHOPMODR=ISHOPMODR07 USPELL=USPELL07 POSTRWORK=POSTRWORK07
+   AGEALL=AGEALL07 AGEFT=AGEFT07 RFULL=RFULL07 
+   PENACCTWD=PENACCTWD07 FGUARANTEE=FGUARANTEE07 FHA=FHA07 WGT=WGT09
+   HHEALTH=HHEALTH07  
+   SPHEALTH=SPHEALTH07));  
+
+   HIPIR07=(PIRTOTAL07>.40);
+   LEVERAGE07=100*DEBT07/(MAX(ASSET07,1));
+   %IF &PUBLIC=NO %THEN %DO;
+      REGION07=REGION;
+   %END;
+  RUN;
+
+  PROC SORT  DATA=P2007; 
+    BY &ID &IID;
+  RUN;
+ 
+  DATA P2009;
+   SET &WORKING%STR(.)&DSN%STR(2009)(RENAME=(MARRIED=MARRIED09 KIDS=KIDS09 
+   NORMINC=NORMINC09 WAGEINC=WAGEINC09 BUSSEFARMINC=BUSSEFARMINC09 INTDIVINC=INTDIVINC09 
+   KGINC=KGINC09 AGE=AGE09 INCCL2=INCCL209 INCOME=INCOME09 EDCL=EDCL09 LIFECL=LIFECL09 
+   FAMSTRUCT=FAMSTRUCT09 CHECKING=CHECKING09 OTHLOC=OTHLOC09 SSRETINC=SSRETINC09 
+   TRANSFOTHINC=TRANSFOTHINC09 AGECL=AGECL09 LIQ=LIQ09 CDS=CDS09 NLEASE=NLEASE09 
+   HBOND=HBOND09 HCCBAL=HCCBAL09 HOUSECL=HOUSECL09 ASSET=ASSET09
+   FIN=FIN09 RETQLIQ=RETQLIQ09  
+   SAVBND=SAVBND09 CASHLI=CASHLI09 OTHMA=OTHMA09 OCCAT1=OCCAT109
+   NMMF=NMMF09 STOCKS=STOCKS09  
+   BOND=BOND09 HCDS=HCDS09 MSAVING=MSAVING09 HSAVING=HSAVING09 HNMMF=HNMMF09 CALL=CALL09 
+   HFIN=HFIN09 HLIQ=HLIQ09 HOTHMA=HOTHMA09 HOTHFIN=HOTHFIN09 HCHECK=HCHECK09 HMMA=HMMA09    
+   HRETQLIQ=HRETQLIQ09 HSAVBND=HSAVBND09 HCASHLI=HCASHLI09 NNRESRE=NNRESRE09 BUS=BUS09 
+   OTHNFIN=OTHNFIN09 HNFIN=HNFIN09 VEHIC=VEHIC09 HOUSES=HOUSES09
+   ORESRE=ORESRE09 HOTHNFIN=HOTHNFIN09  
+   DEBT=DEBT09 MRTHEL=MRTHEL09 RESDBT=RESDBT09 HORESRE=HORESRE09
+   HNNRESRE=HNNRESRE09 HBUS=HBUS09  
+   HMRTHEL=HMRTHEL09 INDCAT=INDCAT09 NHNFIN=NHNFIN09 NFIN=NFIN09
+   INSTALL=INSTALL09 ODEBT=ODEBT09  
+   HDEBT=HDEBT09 HSEC_MORT=HSECMORT09 HELOC_YN=HELOCYN09
+   HRESDBT=HRESDBT09 HOTHLOC=HOTHLOC09     
+   HPRIM_MORT=HPRIMMORT09 PURCH1=PURCH109 REFIN_EVER=REFINEVER09
+   HOMEEQ=HOMEEQ09 TPAY=TPAY09  
+   PIRTOTAL=PIRTOTAL09 EDUC=EDUC09 HODEBT=HODEBT09 HASSET=HASSET09
+   NETWORTH=NETWORTH09 NVEHIC=NVEHIC09  
+   REVPAY=REVPAY09 NTRAD=NTRAD09 HHOUSES=HHOUSES09 ANYPEN=ANYPEN09
+   DBPLANCJ=DBPLANCJ09 EQUITINC=EQUITINC09  
+   BUSVEH=BUSVEH09 NBUSVEH=NBUSVEH09 LATE60=LATE6009 EQUITY=EQUITY09
+   DBPLANT=DBPLANT09 DCPLANCJ=DCPLANCJ09  
+   BPLANCJ=BPLANCJ09 NOWN=NOWN09 VOWN=VOWN09 LEASE=LEASE09 CCBAL=CCBAL09
+   HEQUITY=HEQUITY09 DEQ=DEQ09  
+   OWN=OWN09 HBROK=HBROK09 HTRAD=HTRAD09 NSTOCKS=NSTOCKS09
+   HINSTALL=HINSTALL09 NOCHK=NOCHK09  
+   THRIFT=THRIFT09 MORTPAY=MORTPAY09 CONSPAY=CONSPAY09 OTHFIN=OTHFIN09
+   RETEQ=RETEQ09 IRAKH=IRAKH09  
+   PENEQ=PENEQ09 VEH_INST=VEHINST09 HVEH_INST=HVEHINST09
+   EDN_INST=EDNINST09 HSTOCKS=HSTOCKS09     
+   PIRMORT=PIRMORT09 PIRCONS=PIRCONS09 PIRREV=PIRREV09 HELOC=HELOC09
+   HHELOC=HHELOC09 NH_MORT=NHMORT09  
+   HCALL=HCALL09 HEDN_INST=HEDNINST09 OTH_INST=OTHINST09
+   HOTH_INST=HOTHINST09 ACTBUS=ACTBUS09  
+   NONACTBUS=NONACTBUS09 OCCAT2=OCCAT209 HVEHIC=HVEHIC09
+   HNH_MORT=HNHMORT09 ANNUIT=ANNUIT09 TRUSTS=TRUSTS09  
+   NWCAT=NWCAT09 INCCAT=INCCAT09 ASSETCAT=ASSETCAT09 WSAVED=WSAVED09
+   SAVED=SAVED09 SPENDMOR=SPENDMOR09 
+   ADJM1=ADJM109 ADJM2=ADJM209 ONTIMEM1=ONTIMEM109 ONTIMEM2=ONTIMEM209
+   APPLIED=APPLIED09 DENIED=DENIED09  
+   FULLAMT=FULLAMT09 FEARED=FEARED09 RISK=RISK09 PSAVING=PSAVING09 HABUS=HABUS09
+   BCALL=BCALL09 BMAGZNEWS=BMAGZNEWS09 BMAILADTV=BMAILADTV09 BINTERNET=BINTERNET09 
+   BFRIENDWORK=BFRIENDWORK09 BFINPRO=BFINPRO09 BFINPLAN=BFINPLAN09 BSELF=BSELF09 
+   BDONT=BDONT09 BOTHER=BOTHER09 ICALL=ICALL09 IMAGZNEWS=IMAGZNEWS09 
+   IMAILADTV=IMAILADTV09 IINTERNET=IINTERNET09 IFRIENDWORK=IFRIENDWORK09 
+   IFINPRO=IFINPRO09 IFINPLAN=IFINPLAN09 ISELF=ISELF09 IDONT=IDONT09 
+   IOTHER=IOTHER09 BSHOPNONE=BSHOPNONE09 BSHOPGRDL=BSHOPGRDL09 
+   BSHOPMODR=BSHOPMODR09 ISHOPNONE=ISHOPNONE09 ISHOPGRDL=ISHOPGRDL09 
+   ISHOPMODR=ISHOPMODR09 USPELL=USPELL09 POSTRWORK=POSTRWORK09
+   AGEALL=AGEALL09 AGEFT=AGEFT09 RFULL=RFULL09 
+   PENACCTWD=PENACCTWD09 FGUARANTEE=FGUARANTEE09 FHA=FHA09 WGT=WGT09
+   HHEALTH=HHEALTH09  
+   SPHEALTH=SPHEALTH09));    
+   
+   HIPIR09=(PIRTOTAL09>.40);
+   LEVERAGE09=100*DEBT09/(MAX(ASSET09,1));
+   %IF &PUBLIC=NO %THEN %DO;
+      REGION09=REGION;
+   %END;
+  RUN;
+  
+  PROC SORT DATA=P2009; 
+    BY  &ID &IID;
+  RUN;
+  
+  DATA COMBINE;
+    MERGE P2007 P2009; 
+    BY  &ID &IID;
+    
+  ARRAY VALUE07{*} INCOME07 ASSET07 NETWORTH07 FIN07 LIQ07 CDS07 NMMF07 STOCKS07
+        BOND07 RETQLIQ07 SAVBND07 CASHLI07 OTHMA07 OTHFIN07 NFIN07 VEHIC07 HOUSES07 
+        ORESRE07 NNRESRE07 BUS07 OTHNFIN07 DEBT07 MRTHEL07 RESDBT07 OTHLOC07 CCBAL07 
+        INSTALL07 ODEBT07 TPAY07 MORTPAY07 CONSPAY07 REVPAY07 EQUITY07 DEQ07 VOWN07 
+        RETEQ07 NORMINC07 CHECKING07 MSAVING07 CALL07 HOMEEQ07 IRAKH07 PENEQ07 
+        VEHINST07 EDNINST07 OTHINST07 HELOC07 NHMORT07 WAGEINC07 
+        BUSSEFARMINC07 INTDIVINC07 KGINC07 SSRETINC07 TRANSFOTHINC07 PSAVING07 LEVERAGE07 ;
+  
+  ARRAY VALUE09{*} INCOME09 ASSET09 NETWORTH09 FIN09 LIQ09 CDS09 NMMF09 STOCKS09
+        BOND09 RETQLIQ09 SAVBND09 CASHLI09 OTHMA09 OTHFIN09 NFIN09 VEHIC09 HOUSES09 
+        ORESRE09 NNRESRE09 BUS09 OTHNFIN09 DEBT09 MRTHEL09 RESDBT09 OTHLOC09 CCBAL09 
+        INSTALL09 ODEBT09 TPAY09 MORTPAY09 CONSPAY09 REVPAY09 EQUITY09 DEQ09 VOWN09 
+        RETEQ09 NORMINC09 CHECKING09 MSAVING09 CALL09 HOMEEQ09 IRAKH09 PENEQ09 
+        VEHINST09 EDNINST09 OTHINST09 HELOC09 NHMORT09 WAGEINC09 
+        BUSSEFARMINC09 INTDIVINC09 KGINC09 SSRETINC09 TRANSFOTHINC09 PSAVING09  LEVERAGE09;
+  
+  ARRAY VALUEDIF{*} INCOMEDIF ASSETDIF NETWORTHDIF FINDIF LIQDIF CDSDIF NMMFDIF STOCKSDIF
+        BONDDIF RETQLIQDIF SAVBNDDIF CASHLIDIF OTHMADIF OTHFINDIF
+        NFINDIF VEHICDIF HOUSESDIF  
+        ORESREDIF NNRESREDIF BUSDIF OTHNFINDIF DEBTDIF MRTHELDIF
+        RESDBTDIF OTHLOCDIF CCBALDIF  
+        INSTALLDIF ODEBTDIF TPAYDIF MORTPAYDIF CONSPAYDIF REVPAYDIF
+        EQUITYDIF DEQDIF VOWNDIF  
+        RETEQDIF NORMINCDIF CHECKINGDIF MSAVINGDIF CALLDIF HOMEEQDIF IRAKHDIF PENEQDIF 
+        VEHINSTDIF EDNINSTDIF OTHINSTDIF HELOCDIF NHMORTDIF WAGEINCDIF 
+        BUSSEFARMINCDIF INTDIVINCDIF KGINCDIF SSRETINCDIF
+        TRANSFOTHINCDIF PSAVINGDIF LEVERAGEDIF ; 
+  
+  ARRAY PERCTDIF{*} INCOMEPCT ASSETPCT NETWORTHPCT FINPCT LIQPCT CDSPCT NMMFPCT STOCKSPCT
+        BONDPCT RETQLIQPCT SAVBNDPCT CASHLIPCT OTHMAPCT OTHFINPCT
+        NFINPCT VEHICPCT HOUSESPCT  
+        ORESREPCT NNRESREPCT BUSPCT OTHNFINPCT DEBTPCT MRTHELPCT
+        RESDBTPCT OTHLOCPCT CCBALPCT  
+        INSTALLPCT ODEBTPCT TPAYPCT MORTPAYPCT CONSPAYPCT REVPAYPCT
+        EQUITYPCT DEQPCT VOWNPCT  
+        RETEQPCT NORMINCPCT CHECKINGPCT MSAVINGPCT CALLPCT HOMEEQPCT IRAKHPCT PENEQPCT 
+        VEHINSTPCT EDNINSTPCT OTHINSTPCT HELOCPCT NHMORTPCT WAGEINCPCT 
+        BUSSEFARMINCPCT INTDIVINCPCT KGINCPCT SSRETINCPCT
+        TRANSFOTHINCPCT PSAVINGPCT LEVERAGEPCT ; 
+  
+    DO I=1 TO DIM(VALUE07);
+      IF (VALUE09{I}>.Z & VALUE07{I}>.Z) THEN VALUEDIF{I}=VALUE09{I}-VALUE07{I};
+      IF (VALUE07{I}<0) THEN PERCTDIF{I}=-1*(100*(VALUE09{I}-VALUE07{I})/VALUE07{I}); 
+      ELSE IF (VALUE09{I}>.Z & VALUE07{I}>.Z & VALUE07{I}^=0) THEN
+        PERCTDIF{I}=100*(VALUE09{I}-VALUE07{I})/VALUE07{I}; 
+      ELSE IF (VALUE09{I}>.Z & VALUE07{I}=0) THEN
+        PERCTDIF{I}=100*(VALUE09{I}-VALUE07{I})/(VALUE07{I}+1); 
+    END;
+  RUN;
+  DATA &WORKING%STR(.)&DSN%STR(2009PANEL);
+    SET COMBINE;
+  RUN;
+  
+  PROC CONTENTS DATA=&WORKING%STR(.)&DSN%STR(2009PANEL);
+  RUN;
+
+%MEND;
+
+* public data, real and nominal versions;
+%COMBO(PUBLIC=YES,REAL=YES);
+%COMBO(PUBLIC=YES,REAL=NO);
+
+* remove individual year datasets;
+  PROC DATASETS LIBRARY=WORKINGR;
+    DELETE SCFP2007 SCFP2009; 
+  QUIT;
+
+  PROC DATASETS LIBRARY=WORKINGN;
+    DELETE SCFP2007 SCFP2009; 
+  QUIT;
+  
+ENDSAS;

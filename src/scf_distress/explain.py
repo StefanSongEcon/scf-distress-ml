@@ -151,7 +151,8 @@ def remove_bnpl(te: pd.DataFrame) -> pd.DataFrame:
         d["PIRTOTAL"] = np.where(d["TPAY"] > 0, d["PIRTOTAL"] * tpay_new / d["TPAY"], d["PIRTOTAL"])
         d["PIRREV"] = np.where(d["REVPAY"] > 0, d["PIRREV"] * (d["REVPAY"] - bnplpay) / d["REVPAY"], d["PIRREV"])
     d["TPAY"] = tpay_new
-    d["DEBT2INC"] = np.where((d["DEBT"] > 0) & (d["INCOME"] > 0), d["DEBT"] / d["INCOME"].where(d["INCOME"] > 0), 0.0)
+    d["DEBT2INC"] = np.where((d["DEBT"] > 0) & (d["INCOME"] > 0), d["DEBT"] / d["INCOME"].where(d["INCOME"] > 0),
+                             np.where((d["DEBT"] > 0) & (d["INCOME"] == 0), 10.0, 0.0))  # Fed rule
     d["LEVRATIO"] = np.where((d["DEBT"] > 0) & (d["ASSET"] > 0), d["DEBT"] / d["ASSET"].where(d["ASSET"] > 0),
                              np.where((d["DEBT"] > 0) & (d["ASSET"] == 0), 1.0, 0.0))
     return d

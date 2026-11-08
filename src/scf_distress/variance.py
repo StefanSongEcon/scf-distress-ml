@@ -30,7 +30,10 @@ Z95 = 1.959964
 
 def load_replicates(rep_dir: str | Path, year: int) -> pd.DataFrame:
     """Return a frame indexed by family_id (= YY1) with 999 replicate weight columns R1..R999."""
-    path = Path(rep_dir) / str(year) / f"p{year % 100:02d}_rw1.dta"
+    return load_replicate_file(Path(rep_dir) / str(year) / f"p{year % 100:02d}_rw1.dta", year)
+
+
+def load_replicate_file(path: str | Path, year: int | str = "") -> pd.DataFrame:
     d = pd.read_stata(path, convert_categoricals=False)
     d.columns = [c.lower() for c in d.columns]
     imp = d["y1"].astype(np.int64) - 10 * d["yy1"].astype(np.int64)

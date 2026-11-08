@@ -121,79 +121,105 @@ def _expand_mconv(s: str, body: str) -> str:
     return re.sub(r"%MCONV\(([^()]*)\)", rep, s, flags=re.I)
 
 
-def _macro_constants(src: str, year: int) -> dict:
-    m = re.search(r"%IF\s*\(&YEAR=" + str(year) + r"\)\s*%THEN\s*%DO;\s*%LET CPIADJ=&CPIBASE/(\d+);"
-                  r"\s*%LET CPILAG=(\d+)/(\d+);", src) or \
-        re.search(r"%ELSE\s*%IF\s*\(&YEAR=" + str(year) + r"\)\s*%THEN\s*%DO;\s*%LET CPIADJ=&CPIBASE/(\d+);"
-                  r"\s*%LET CPILAG=(\d+)/(\d+);", src)
-    if not m:
-        raise ValueError(f"No CPI constants for {year} in macro")
-    return {"cpi_year": int(m.group(1)), "cpilag": (int(m.group(2)), int(m.group(3)))}
+def resolve_macro(year: int, cpibase: int, src: str | None = None, macro_path: str | Path | None = None) -> list[str]:
+    """Return the active DATA-step statements of BULLIT for `year`, PUBLIC=YES.
 
+    The whole BULLIT macro body is processed: macro-level ``%LET``/``%IF``/``%ELSE``
+    (block ``%DO ... %END`` and single-statement forms) before the DATA step set
+    the macro variables (CPI factors, IDs, and in the panel macro the ``&Vnnnn``
+    pointers to 2007 ``X`` or 2009 ``P`` variables); DATA-step statements are kept.
+    """
+    if src is None:
+        src = Path(macro_path or MACRO_PATH).read_text(errors="ignore")
+    mconv = " ".join(re.search(r"%MACRO MCONV\(F\);(.*?)%MEND MCONV;", src, re.S).group(1).split())
+    mvars: dict = {"YEAR": year, "PUBLIC": "YES", "REAL": "YES", "ADJINC": "YES", "CPIBASE": cpibase}
 
-def resolve_macro(year: int, cpibase: int, src: str | None = None) -> list[str]:
-    """Return the active DATA-step statements of BULLIT for `year`, PUBLIC=YES."""
-    src = src if src is not None else MACRO_PATH.read_text(errors="ignore")
-    mconv = re.search(r"%MACRO MCONV\(F\);(.*?)%MEND MCONV;", src, re.S).group(1)
-    mconv = " ".join(mconv.split())
-    k = _macro_constants(src, year)
-    mvars = {"YEAR": year, "PUBLIC": "YES", "REAL": "YES", "ADJINC": "YES", "CPIBASE": cpibase,
-             "CPIADJ": f"({cpibase}/{k['cpi_year']})", "CPILAG": f"({k['cpilag'][0]}/{k['cpilag'][1]})",
-             "ID": "Y1", "IID": "YY1", "PID": "Y1", "PIID": "YY1"}
-
-    start = src.index("DATA %UNQUOTE(SCFB&YEAR)(KEEP=&KEEPLIST);")
-    end = src.index("RUN;", src.index("INCCL2=5;", start))
-    stmts = _split_statements(src[start:end])[1:]  # drop the DATA statement
+    begin = src.index("%MACRO BULLIT(")
+    data_stmt = src.index("DATA %UNQUOTE(SCFB&YEAR)(KEEP=&KEEPLIST);", begin)
+    end = src.index("RUN;", src.index("INCCL2=5;", data_stmt))
+    stmts = _split_statements(src[begin:end])
 
     out: list[str] = []
     stack: list[dict] = []  # frames: active, taken
-    last_closed = None
+    state = {"last_closed": None, "in_step": False}
 
     def parent_active():
         return all(f["active"] for f in stack)
 
-    for s in stmts:
+    def cond(text):
+        return _eval_macro_condition(text, mvars)
+
+    def plain(s: str):
+        """A non-branching statement in an active region."""
         u = s.upper()
-        m_if = re.fullmatch(r"%IF\s*(.*?)\s*%THEN\s*%DO", s, re.I | re.S)
-        m_elif = re.fullmatch(r"%ELSE\s*%IF\s*(.*?)\s*%THEN\s*%DO", s, re.I | re.S)
-        if m_if:
-            pa = parent_active()
-            c = pa and _eval_macro_condition(m_if.group(1), mvars)
-            stack.append({"active": c, "taken": c})
-            last_closed = None
-        elif m_elif:
-            if last_closed is None:
-                raise SyntaxError(f"%ELSE without %IF: {s}")
-            pa = parent_active()
-            c = pa and not last_closed["taken"] and _eval_macro_condition(m_elif.group(1), mvars)
-            stack.append({"active": c, "taken": last_closed["taken"] or c})
-            last_closed = None
-        elif re.fullmatch(r"%ELSE\s*%DO", s, re.I):
-            if last_closed is None:
-                raise SyntaxError("%ELSE %DO without %IF")
-            c = parent_active() and not last_closed["taken"]
-            stack.append({"active": c, "taken": True})
-            last_closed = None
-        elif u == "%END":
-            last_closed = stack.pop()
-        else:
-            last_closed = None
-            if not parent_active():
-                continue
-            if u.startswith("%LET"):
-                name, val = s[4:].split("=", 1)
+        if u.startswith("%LET"):
+            name, val = s[4:].split("=", 1)
+            try:
                 mvars[name.strip().upper()] = _substitute(val.strip(), mvars)
-                continue
-            if u.startswith("%INCLUDE"):
+            except KeyError:  # keep lists (e.g. KEEPLIST) are never used in computations
+                mvars[name.strip().upper()] = val.strip()
+            return
+        if re.match(r"%(PUT|GLOBAL|MACRO|LOCAL)\b", u):
+            return
+        if not state["in_step"]:
+            if u.startswith("DATA %UNQUOTE(SCFB&YEAR)"):
+                state["in_step"] = True
+            elif u.startswith("%INCLUDE"):
                 raise RuntimeError(f"%INCLUDE in active public-data path: {s}")
-            if _is_ignored(u):
-                continue
-            s = _substitute(_expand_mconv(s, mconv), mvars)
-            if "%" in re.sub(r"'[^']*'|\"[^\"]*\"", "", s):
-                raise SyntaxError(f"Unresolved macro code: {s[:150]}")
-            out.append(s)
+            return
+        if u.startswith("%INCLUDE"):
+            raise RuntimeError(f"%INCLUDE in active public-data path: {s}")
+        if _is_ignored(u):
+            return
+        s = _substitute(_expand_mconv(s, mconv), mvars)
+        if "%" in re.sub(r"'[^']*'|\"[^\"]*\"", "", s):
+            raise SyntaxError(f"Unresolved macro code: {s[:150]}")
+        out.append(s)
+
+    for s in stmts:
+        m_else = re.match(r"%ELSE\b\s*(.*)", s, re.I | re.S)
+        m_if = re.fullmatch(r"%IF\s*(.*?)\s*%THEN\s*(.*)", s, re.I | re.S)
+        if m_else:
+            prev = state["last_closed"]
+            if prev is None:
+                raise SyntaxError(f"%ELSE without %IF: {s[:80]}")
+            state["last_closed"] = None
+            rest = m_else.group(1).strip()
+            pa = parent_active()
+            m2 = re.fullmatch(r"%IF\s*(.*?)\s*%THEN\s*(.*)", rest, re.I | re.S)
+            if re.fullmatch(r"%DO", rest, re.I):
+                stack.append({"active": pa and not prev["taken"], "taken": True})
+            elif m2:
+                ok = pa and not prev["taken"] and cond(m2.group(1))
+                taken = prev["taken"] or ok
+                if re.fullmatch(r"%DO", m2.group(2).strip(), re.I):
+                    stack.append({"active": ok, "taken": taken})
+                else:
+                    if ok:
+                        plain(m2.group(2).strip())
+                    state["last_closed"] = {"taken": taken}
+            elif pa and not prev["taken"]:
+                plain(rest)
+        elif m_if:
+            ok = parent_active() and cond(m_if.group(1))
+            body = m_if.group(2).strip()
+            if re.fullmatch(r"%DO", body, re.I):
+                stack.append({"active": ok, "taken": ok})
+                state["last_closed"] = None
+            else:
+                if ok:
+                    plain(body)
+                state["last_closed"] = {"taken": ok}
+        elif s.upper() == "%END":
+            state["last_closed"] = stack.pop()
+        else:
+            state["last_closed"] = None
+            if parent_active():
+                plain(s)
     if stack:
         raise SyntaxError("Unbalanced %DO/%END")
+    if not state["in_step"]:
+        raise SyntaxError("DATA step not found")
     return out
 
 
@@ -677,8 +703,8 @@ class BullitResult:
     n_statements: int
 
 
-def compile_year(year: int, cpibase: int):
-    stmts = resolve_macro(year, cpibase)
+def compile_year(year: int, cpibase: int, macro_path: str | Path | None = None):
+    stmts = resolve_macro(year, cpibase, macro_path=macro_path)
     return stmts, StepParser(stmts).parse_all()
 
 

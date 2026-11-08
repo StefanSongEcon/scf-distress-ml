@@ -1,0 +1,11 @@
+[panel-analysis] CIs done
+[panel-importance] LATE/A_all/P_M4LAG/logit done
+[panel-importance] LATE/A_all/P_M4LAG/xgb done
+[panel-importance] LATE/B_indebted07/P_M4LAG/logit done
+[panel-importance] LATE/B_indebted07/P_M4LAG/xgb done
+[panel-importance] LATE60/A_all/P_M4LAG/logit done
+[panel-importance] LATE60/A_all/P_M4LAG/xgb done
+[panel-importance] LATE60/B_indebted07/P_M4LAG/logit done
+[panel-importance] LATE60/B_indebted07/P_M4LAG/xgb done
+[panel-analysis] done
+.venv/bin/python -m scf_distress.panel_analysis  511.69s user 176.51s system 642% cpu 1:47.14 total

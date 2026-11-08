@@ -69,17 +69,27 @@ def test_keyword_named_variable_is_assigned():
 
 def test_macro_branches_resolve_by_year():
     src = """%MACRO MCONV(F); ((&F=4)) %MEND MCONV;
+    %MACRO BULLIT(YEAR=,REAL=YES,CPIBASE=,PUBLIC=NO,ADJINC=YES);
+    %IF (&YEAR=2016) %THEN %DO; %LET CPILAG=1/1; %END;
     %ELSE %IF (&YEAR=2019) %THEN %DO; %LET CPIADJ=&CPIBASE/3775; %LET CPILAG=3758/3691;
+      %IF (&PUBLIC NE YES) %THEN %LET SCFDS=SCF19I6;
+      %ELSE %LET SCFDS=P19I6;
+    %END;
+    %IF (&YEAR=2009) %THEN %DO; %LET V14=P14; %END;
+    %ELSE %IF (&YEAR=2019) %THEN %DO; %LET V14=X14; %END;
+    %IF (&REAL EQ YES AND &ADJINC NE YES) %THEN %PUT WARNING!;
     DATA %UNQUOTE(SCFB&YEAR)(KEEP=&KEEPLIST);
       %IF (&YEAR GE 2016) %THEN %DO; A=1; %END;
       %ELSE %IF (&YEAR GE 2010) %THEN %DO; A=2; %END;
       %ELSE %DO; A=3; %END;
       * comment with %IF inside;
       B=%MCONV(F=X) * &CPILAG;
+      AGE=&V14;
+      C=&SCFDS;
       INCCL2=5;
     RUN;"""
     stmts = sasport.resolve_macro(2019, 4789, src)
-    assert stmts == ["A=1", "B=(((X)=4)) * (3758/3691)", "INCCL2=5"]
+    assert stmts == ["A=1", "B=(((X)=4)) * 3758/3691", "AGE=X14", "C=P19I6", "INCCL2=5"]
 
 
 @pytest.mark.parametrize("year", [2010, 2013, 2016, 2019, 2025])

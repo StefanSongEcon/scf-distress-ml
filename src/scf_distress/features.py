@@ -8,8 +8,8 @@ fixed functions (no fitted parameters), so they cannot leak test information:
   equity keep their sign; never set to zero);
 * ratios -> ``asinh`` of the ratio, with denominators floored at $1,000 where the
   ratio is constructed here; the Fed's ``PIRTOTAL``/``PIRCONS``/``PIRREV`` keep the
-  Fed's own income floor; ``DEBT2INC`` is 0 when debt or income is 0 (Fed definition)
-  and ``income_zero`` flags the latter;
+  Fed's own income floor; ``DEBT2INC`` follows the Fed (0 without debt, 10 with debt
+  but zero income) and ``income_zero`` flags zero income;
 * categorical codes -> one-hot indicators (reference level dropped).
 
 Note: the Fed sets ``INCOME = max(0, X5729)``; the public data record negative

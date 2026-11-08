@@ -65,4 +65,6 @@ this check, never as model inputs.
 - [x] Port of Fed summary-variable macro, checked against the summary extracts
 - [x] Feature construction (whitelist, blocks M1–M4), samples A/B/B2
 - [x] Models, locked 2025 test, interpretation, figures, report (`results/report.md`)
-- [ ] Replicate-weight confidence intervals; raw-weight and modern-waves-only robustness; expanded behavioural model
+- [x] Replicate-weight confidence intervals
+- [x] 2007–2009 panel extension: prospective prediction (`--panel`; `results/panel/report.md`)
+- [ ] Raw-weight and modern-waves-only robustness; historical recalibration; expanded behavioural model
