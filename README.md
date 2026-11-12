@@ -1,4 +1,4 @@
-#Classifying and Predicting Household Delinquency: A Machine Learning Approach
+**Classifying and Predicting Household Delinquency: A Machine Learning Approach**
 
 Which U.S. households fall behind on their debts, and can it be seen coming? This project trains survey-weighted
 machine-learning models on Federal Reserve **Survey of Consumer Finances** microdata (2007–2025) to identify
